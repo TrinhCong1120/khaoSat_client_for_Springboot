@@ -5,6 +5,7 @@ import Modal from "@/components/ui/modal/Modal";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
+import { API_SURVEYS } from "@/lib/api";
 
 interface Props {
   onClose: () => void;
@@ -19,8 +20,6 @@ export default function SurveyFormModal({
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -38,7 +37,7 @@ export default function SurveyFormModal({
         throw new Error("Phiên làm việc hết hạn. Vui lòng đăng nhập lại.");
       }
 
-      const response = await fetch(`${API_URL}/survey/create`, {
+      const response = await fetch(API_SURVEYS, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

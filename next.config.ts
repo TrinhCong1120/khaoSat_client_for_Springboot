@@ -23,14 +23,23 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/api/:path*",
-        destination: "http://localhost:5000/:path*",
+        source: "/backend-api/:path*",
+        destination: "http://localhost:8080/api/:path*",
       },
     ];
   },
   
   images: {
-    domains: ["images.unsplash.com", "upload.wikimedia.org"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "upload.wikimedia.org",
+      },
+    ],
   },
 
 };

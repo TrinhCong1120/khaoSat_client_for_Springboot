@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import * as FiIcons from "react-icons/fi";
 import { FiChevronDown, FiMoreHorizontal } from "react-icons/fi";
+import { API_MENUS } from "@/lib/api";
 
 // ======================
 // TYPE
@@ -130,7 +131,7 @@ const AdminSidebar: React.FC = () => {
         if (!token) return;
 
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/core/Menus/my-menu`,
+          `${API_MENUS}/my-menu`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -348,6 +349,7 @@ const AdminSidebar: React.FC = () => {
                  alt="Logo"
                  width={150}
                  height={40}
+                 style={{ height: "auto" }}
                />
                <Image
                  className="hidden dark:block"
@@ -355,6 +357,7 @@ const AdminSidebar: React.FC = () => {
                  alt="Logo"
                  width={150}
                  height={40}
+                 style={{ height: "auto" }}
                />
             </div>
           ) : (

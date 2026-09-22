@@ -1,0 +1,40 @@
+{
+  "id": "1789704120840-bab63f0fe693a8",
+  "fileName": "failed_20260918_1789704120840.json",
+  "createdAt": "2026-09-18T04:02:00.840Z",
+  "surveyId": 2,
+  "surveyTitle": "Khao sat trai nghiem khach hang",
+  "statusCode": 503,
+  "statusText": "Service Unavailable",
+  "message": "Khong tim thay service trong Eureka",
+  "url": "http://localhost:8080/api/public/surveys/2/submit",
+  "payload": {
+    "answers": [
+      {
+        "questionId": 6,
+        "optionIds": [
+          2
+        ]
+      },
+      {
+        "questionId": 7,
+        "optionIds": [
+          5
+        ]
+      },
+      {
+        "questionId": 8,
+        "answerText": "22das"
+      },
+      {
+        "questionId": 9,
+        "answerText": "2"
+      },
+      {
+        "questionId": 11,
+        "province": "Thành phố Đà Nẵng",
+        "ward": "Phường Quảng Phú"
+      }
+    ]
+  }
+}

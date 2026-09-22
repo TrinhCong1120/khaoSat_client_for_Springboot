@@ -5,6 +5,7 @@ import UserTable from "@/components/users/UserTable";
 import UserFormModal from "@/components/users/UserFormModal";
 import Button from "@/components/ui/button/Button";
 import { PlusIcon } from "@/icons";
+import { API_USERS } from "@/lib/api";
 
 // ======================
 // TYPE
@@ -34,9 +35,6 @@ export default function UsersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  const API_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
   // ======================
   // FETCH USERS
   // ======================
@@ -52,7 +50,7 @@ export default function UsersPage() {
         return;
       }
 
-      const res = await fetch(`${API_URL}/core/Users`, {
+      const res = await fetch(API_USERS, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -93,7 +91,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [API_URL]);
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -118,7 +116,7 @@ export default function UsersPage() {
     try {
       const token = getToken();
 
-      const res = await fetch(`${API_URL}/core/Users/${userId}`, {
+      const res = await fetch(`${API_USERS}/${userId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,

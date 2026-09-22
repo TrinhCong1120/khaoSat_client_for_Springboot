@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import FunctionTable from "@/components/functions/FunctionTable";
 import PermissionMatrixModal from "@/components/functions/PermissionMatrixModal";
+import { API_FUNCTIONS } from "@/lib/api";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -19,14 +20,12 @@ export default function FunctionsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedFunction, setSelectedFunction] = useState<number | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   // ======================
   // FETCH FUNCTIONS
   // ======================
   const fetchFunctions = async () => {
     try {
-      const res = await fetch(`${API_URL}/core/Functions`, {
+      const res = await fetch(API_FUNCTIONS, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },

@@ -35,6 +35,7 @@ import {
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
+import { API_FUNCTIONS, API_MENUS } from "@/lib/api";
 
 // ======================
 // TYPES
@@ -67,7 +68,7 @@ async function api(url: string, options: any = {}) {
   const token = getToken();
 
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}${url}`,
+    url,
     {
       ...options,
       headers: {
@@ -181,7 +182,7 @@ function TreeItem({
   const createChild = async (e: any) => {
     e.stopPropagation();
 
-    await api("/core/menus", {
+    await api(API_MENUS, {
       method: "POST",
       body: JSON.stringify({
         name: "Menu con mới",
@@ -352,7 +353,7 @@ export default function MenuManagerPage() {
     const parentPayload = parentId === null ? null : parentId;
     await Promise.all(
       siblings.map((s, idx) =>
-        api(`/core/menus/${s.id}`, {
+        api(`${API_MENUS}/${s.id}`, {
           method: "PUT",
           body: JSON.stringify(
             menuPayload(s, {
@@ -406,12 +407,12 @@ export default function MenuManagerPage() {
   };
 
   const fetchMenus = async () => {
-    const res = await api("/core/menus/tree");
+    const res = await api(`${API_MENUS}/tree`);
     setMenus(await res.json());
   };
 
   const fetchFunctions = async () => {
-    const res = await api("/core/functions");
+    const res = await api(API_FUNCTIONS);
     setFunctions(await res.json());
   };
 
@@ -438,7 +439,7 @@ export default function MenuManagerPage() {
 
     setLoading(true);
     try {
-      await api(`/core/menus/${selected.id}`, {
+      await api(`${API_MENUS}/${selected.id}`, {
         method: "PUT",
         body: JSON.stringify(form),
       });
@@ -461,7 +462,7 @@ export default function MenuManagerPage() {
 
     setLoading(true);
     try {
-      const res = await api(`/core/menus/${selected.id}`, {
+      const res = await api(`${API_MENUS}/${selected.id}`, {
         method: "DELETE",
       });
 
@@ -494,7 +495,7 @@ export default function MenuManagerPage() {
 
         <button
           onClick={async () => {
-            await api("/core/menus", {
+            await api(API_MENUS, {
               method: "POST",
               body: JSON.stringify({
                 name: "Danh mục mới",

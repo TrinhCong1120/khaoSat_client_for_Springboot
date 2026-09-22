@@ -1,41 +1,73 @@
 "use client";
 
 import { ChangeEvent, useRef, useState } from "react";
-import Link from "next/link";
 
 import FailedSurveysPanel from "@/components/result/FailedSurveysPanel";
+import { API_FAILED_SURVEYS } from "@/lib/api";
+import { getFailedSurveyFileContent } from "@/lib/failedSurveyStorage";
 
 const getToken = () =>
   localStorage.getItem("token") || sessionStorage.getItem("token");
 
 export default function SurveyFailSubmitPage() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
   const [isImportingFailed, setIsImportingFailed] = useState(false);
   const [failedFilesRefreshVersion, setFailedFilesRefreshVersion] = useState(0);
   const failedImportInputRef = useRef<HTMLInputElement | null>(null);
 
-  const importFailedSubmissions = async (file: File) => {
-    if (isImportingFailed) return;
-    setIsImportingFailed(true);
+  const importFileToBackend = async (file: File): Promise<{
+    ok: boolean;
+    failedRemain: number;
+    message?: string;
+  }> => {
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch(`${API_URL}/survey/admin/import-failed`, {
+      const res = await fetch(`${API_FAILED_SURVEYS}/import`, {
         method: "POST",
         headers: { Authorization: `Bearer ${getToken()}` },
         body: formData,
       });
 
       if (!res.ok) {
-        const message = await res.text();
-        window.alert(message || `Import thất bại (${res.status})`);
+        return {
+          ok: false,
+          failedRemain: 0,
+          message: (await res.text()) || `Import thất bại (${res.status})`,
+        };
+      }
+
+      const raw = await res.text();
+      let result: { failedRemain?: number } = {};
+      try {
+        result = raw ? JSON.parse(raw) : {};
+      } catch {
+        result = {};
+      }
+
+      const failedRemain = Number(result.failedRemain ?? 0);
+      return { ok: failedRemain === 0, failedRemain };
+    } catch {
+      return {
+        ok: false,
+        failedRemain: 0,
+        message: "Lỗi mạng khi import failed submissions",
+      };
+    }
+  };
+
+  const importFailedSubmissions = async (file: File) => {
+    if (isImportingFailed) return;
+    setIsImportingFailed(true);
+    try {
+      const result = await importFileToBackend(file);
+      if (!result.ok) {
+        window.alert(result.message || "Import chưa hoàn tất, file được giữ lại.");
         return;
       }
 
-      const result = await res.json();
       window.alert(
-        `Import xong: tổng ${result.total}, thành công ${result.imported}, trùng ${result.skippedDuplicate}, còn lỗi ${result.failedRemain}`
+        "Import xong. File gốc được chọn từ máy sẽ không bị xóa tự động."
       );
       setFailedFilesRefreshVersion((v) => v + 1);
     } catch {
@@ -43,6 +75,21 @@ export default function SurveyFailSubmitPage() {
     } finally {
       setIsImportingFailed(false);
     }
+  };
+
+  const importStoredFile = async (fileName: string) => {
+    const content = await getFailedSurveyFileContent(fileName);
+    if (!content) return false;
+
+    const result = await importFileToBackend(
+      new File([content], fileName, { type: "application/json" })
+    );
+
+    if (!result.ok && result.message) {
+      window.alert(`${fileName}: ${result.message}`);
+    }
+
+    return result.ok;
   };
 
   const onSelectFailedImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -83,8 +130,8 @@ export default function SurveyFailSubmitPage() {
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-5">
           <FailedSurveysPanel
-            apiUrl={API_URL}
             onImportClick={() => failedImportInputRef.current?.click()}
+            onImportStoredFile={importStoredFile}
             isImporting={isImportingFailed}
             refreshVersion={failedFilesRefreshVersion}
           />

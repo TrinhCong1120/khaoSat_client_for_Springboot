@@ -9,6 +9,7 @@ import {
   FiUnlock,
   FiLock,
 } from "react-icons/fi";
+import { API_PUBLIC_SURVEYS } from "@/lib/api";
 
 type Survey = {
   id: number;
@@ -32,8 +33,6 @@ export default function SurveyTable({
   onDelete,
   onToggleActive,
 }: Props) {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   return (
     <div className="rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden bg-white dark:bg-gray-900 transition-all">
       <div className="overflow-x-auto text-gray-500 dark:text-gray-400">
@@ -114,7 +113,7 @@ export default function SurveyTable({
                   {/* API PUBLIC */}
                   <td className="px-6 py-4">
                     <a
-                      href={`${API_URL}/survey/publicsurvey/${s.id}`}
+                      href={`${API_PUBLIC_SURVEYS}/${s.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 text-brand-500 hover:text-brand-600 font-bold text-xs uppercase tracking-tight transition-colors group/link"

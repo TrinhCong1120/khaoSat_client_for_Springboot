@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FiEdit2, FiPlus, FiTrash2, FiX } from "react-icons/fi";
 import SearchableCodeSelect from "@/components/form/SearchableCodeSelect";
 import { isAddressQuestionType } from "@/lib/vietnam-address-api";
+import { API_CONDITIONS, API_PROVINCES, API_SURVEYS } from "@/lib/api";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -14,7 +15,6 @@ export default function ConditionEditor({
   conditions,
   setConditions,
 }: any) {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [form, setForm] = useState<any>({
@@ -74,7 +74,7 @@ export default function ConditionEditor({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("https://provinces.open-api.vn/api/v2/")
+    fetch(`${API_PROVINCES}/`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: { name: string; code: number }[]) => {
         if (cancelled) return;
@@ -99,7 +99,7 @@ export default function ConditionEditor({
       return;
     }
     let cancelled = false;
-    fetch(`https://provinces.open-api.vn/api/v2/p/${addressProvinceCode}?depth=2`)
+    fetch(`${API_PROVINCES}/p/${addressProvinceCode}?depth=2`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: {
         wards?: { name: string; code: number }[];
@@ -140,7 +140,7 @@ export default function ConditionEditor({
   };
 
   const reloadConditions = async () => {
-    const res = await fetch(`${API_URL}/survey/${survey.id}`, {
+    const res = await fetch(`${API_SURVEYS}/${survey.id}`, {
       headers: {
         Authorization: `Bearer ${getToken()}`,
       },
@@ -199,8 +199,8 @@ export default function ConditionEditor({
 
     const endpoint =
       editingId == null
-        ? `${API_URL}/survey/conditions`
-        : `${API_URL}/survey/conditions/${editingId}`;
+        ? API_CONDITIONS
+        : `${API_CONDITIONS}/${editingId}`;
     const method = editingId == null ? "POST" : "PUT";
 
     const res = await fetch(endpoint, {
@@ -228,7 +228,7 @@ export default function ConditionEditor({
   const deleteCondition = async (id: number) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa điều kiện này?")) return;
 
-    await fetch(`${API_URL}/survey/conditions/${id}`, {
+    await fetch(`${API_CONDITIONS}/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${getToken()}`,

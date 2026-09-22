@@ -1,8 +1,4 @@
-/**
- * Hợp đồng API: backend cần triển khai
- * GET {API_URL}/survey/dashboard
- * Header: Authorization: Bearer {token}
- */
+import { API_DASHBOARD } from "@/lib/api";
 
 export type DashboardActivityDay = {
   /** Nhãn trục X, ví dụ T2…CN hoặc 25/03 */
@@ -58,50 +54,72 @@ const DEFAULT: DashboardApiResponse = {
 
 export function normalizeDashboard(raw: unknown): DashboardApiResponse {
   if (!raw || typeof raw !== "object") return { ...DEFAULT, kpis: { ...DEFAULT.kpis } };
-  const r = raw as Partial<DashboardApiResponse>;
-  const k = (r.kpis ?? {}) as Partial<DashboardKpis>;
+  const source = raw as Partial<DashboardApiResponse> & {
+    openSurveys?: number;
+    openSurveysDelta?: number | null;
+    totalResponses?: number;
+    completionRate?: number;
+    activities?: Array<{ date?: string; label?: string; responses?: number; views?: number }>;
+    surveyStatuses?: Array<{ status?: string; label?: string; count?: number }>;
+    topSurveys?: Array<DashboardTopSurvey & { surveyId?: number }>;
+  };
+  const k = (source.kpis ?? {}) as Partial<DashboardKpis>;
+  const legacyKpis: DashboardKpis = {
+    openSurveys: Number(source.openSurveys) || 0,
+    openSurveysTrendDelta:
+      source.openSurveysDelta == null ? null : Number(source.openSurveysDelta),
+    responsesLast30Days: Number(source.responsesLast30Days) || 0,
+    responsesTrendPercent:
+      source.responsesTrendPercent == null ? null : Number(source.responsesTrendPercent),
+    averageCompletionRatePercent: Number(source.completionRate) || 0,
+    satisfactionScore:
+      source.satisfactionScore == null ? null : Number(source.satisfactionScore),
+    satisfactionTrendDelta:
+      source.satisfactionTrendDelta == null ? null : Number(source.satisfactionTrendDelta),
+  };
+  const kpis = source.kpis ? k : legacyKpis;
+  const activity = source.activityLast7Days ?? source.activities ?? [];
+  const statuses = source.statusDistribution ?? source.surveyStatuses ?? [];
+  const topSurveys = source.topSurveysByCompletion ?? source.topSurveys ?? [];
   return {
     kpis: {
-      openSurveys: Number(k.openSurveys) || 0,
+      openSurveys: Number(kpis.openSurveys) || 0,
       openSurveysTrendDelta:
-        k.openSurveysTrendDelta == null ? null : Number(k.openSurveysTrendDelta),
-      responsesLast30Days: Number(k.responsesLast30Days) || 0,
+        kpis.openSurveysTrendDelta == null ? null : Number(kpis.openSurveysTrendDelta),
+      responsesLast30Days: Number(kpis.responsesLast30Days) || 0,
       responsesTrendPercent:
-        k.responsesTrendPercent == null ? null : Number(k.responsesTrendPercent),
+        kpis.responsesTrendPercent == null ? null : Number(kpis.responsesTrendPercent),
       averageCompletionRatePercent: Math.min(
         100,
-        Math.max(0, Number(k.averageCompletionRatePercent) || 0)
+        Math.max(0, Number(kpis.averageCompletionRatePercent) || 0)
       ),
       completionTrendDeltaPercent:
-        k.completionTrendDeltaPercent == null
+        kpis.completionTrendDeltaPercent == null
           ? null
-          : Number(k.completionTrendDeltaPercent),
+          : Number(kpis.completionTrendDeltaPercent),
       satisfactionScore:
-        k.satisfactionScore == null ? null : Number(k.satisfactionScore),
+        kpis.satisfactionScore == null ? null : Number(kpis.satisfactionScore),
       satisfactionTrendDelta:
-        k.satisfactionTrendDelta == null ? null : Number(k.satisfactionTrendDelta),
+        kpis.satisfactionTrendDelta == null ? null : Number(kpis.satisfactionTrendDelta),
     },
-    activityLast7Days: Array.isArray(r.activityLast7Days)
-      ? r.activityLast7Days.map((d) => ({
-          label: String((d as DashboardActivityDay).label ?? ""),
-          responses: Number((d as DashboardActivityDay).responses) || 0,
-          views: Number((d as DashboardActivityDay).views) || 0,
+    activityLast7Days: Array.isArray(activity)
+      ? activity.map((d) => ({
+          label: String(d.label ?? d.date ?? ""),
+          responses: Number(d.responses) || 0,
+          views: Number(d.views) || 0,
         }))
       : [],
-    statusDistribution: Array.isArray(r.statusDistribution)
-      ? r.statusDistribution.map((s) => ({
-          label: String((s as DashboardStatusSlice).label ?? ""),
-          count: Number((s as DashboardStatusSlice).count) || 0,
+    statusDistribution: Array.isArray(statuses)
+      ? statuses.map((s) => ({
+          label: String(s.label ?? s.status ?? ""),
+          count: Number(s.count) || 0,
         }))
       : [],
-    topSurveysByCompletion: Array.isArray(r.topSurveysByCompletion)
-      ? r.topSurveysByCompletion.map((t) => ({
-          title: String((t as DashboardTopSurvey).title ?? ""),
-          completionPercent: Math.min(
-            100,
-            Math.max(0, Number((t as DashboardTopSurvey).completionPercent) || 0)
-          ),
-          responseCount: Number((t as DashboardTopSurvey).responseCount) || 0,
+    topSurveysByCompletion: Array.isArray(topSurveys)
+      ? topSurveys.map((t) => ({
+          title: String(t.title ?? ""),
+          completionPercent: Math.min(100, Math.max(0, Number(t.completionPercent) || 0)),
+          responseCount: Number(t.responseCount) || 0,
         }))
       : [],
   };
@@ -135,8 +153,7 @@ export function trendSigned(
 }
 
 export async function fetchDashboard(token: string): Promise<DashboardApiResponse> {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-  const res = await fetch(`${API_URL}/survey/dashboard`, {
+  const res = await fetch(API_DASHBOARD, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {

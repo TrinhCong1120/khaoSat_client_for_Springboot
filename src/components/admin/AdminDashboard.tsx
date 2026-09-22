@@ -4,7 +4,12 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApexOptions } from "apexcharts";
 import {
+  FiActivity,
+  FiArrowUpRight,
+  FiBarChart2,
   FiClipboard,
+  FiEye,
+  FiTarget,
   FiUsers,
   FiTrendingUp,
   FiCheckCircle,
@@ -218,7 +223,10 @@ export default function AdminDashboard() {
     [isDark, muted, border, activity]
   );
 
-  const statusSlices = data?.statusDistribution ?? [];
+  const statusSlices = useMemo(
+    () => data?.statusDistribution ?? [],
+    [data]
+  );
   const donutSeries = useMemo(
     () => statusSlices.map((s) => s.count),
     [statusSlices]
@@ -322,6 +330,23 @@ export default function AdminDashboard() {
     [barSeriesData]
   );
 
+  const totalSurveys = useMemo(
+    () => statusSlices.reduce((sum, slice) => sum + slice.count, 0),
+    [statusSlices]
+  );
+  const totalResponses7Days = useMemo(
+    () => activity.reduce((sum, day) => sum + day.responses, 0),
+    [activity]
+  );
+  const totalViews7Days = useMemo(
+    () => activity.reduce((sum, day) => sum + day.views, 0),
+    [activity]
+  );
+  const responseRate7Days = totalViews7Days
+    ? Math.round((totalResponses7Days / totalViews7Days) * 100)
+    : null;
+  const leadingSurvey = topList[0];
+
   const kpiCards = useMemo(
     () => (data ? buildKpiCards(data) : buildKpiCards({
       kpis: {
@@ -339,32 +364,37 @@ export default function AdminDashboard() {
   const chartKey = `${donutSeries.join(",")}-${areaSeries[0].data.join(",")}`;
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-6 pb-8">
+      <header className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-theme-sm lg:flex-row lg:items-center lg:justify-between lg:px-7 dark:border-gray-800 dark:bg-gray-900">
         <div>
-          <h1 className="text-title-sm font-bold text-gray-800 dark:text-white">
-            Tổng quan
+          <div className="mb-2 flex items-center gap-2 text-theme-xs font-semibold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-400">
+            <FiActivity className="size-4" />
+            Trung tâm điều hành
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white xl:text-3xl">
+            Tổng quan hệ thống
           </h1>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-            Thống kê từ API <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">GET /survey/dashboard</code>
+            Tín hiệu mới nhất về hiệu quả thu thập phản hồi và chất lượng khảo sát.
           </p>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-0">
-          <button
-            type="button"
-            onClick={() => load()}
-            disabled={loading}
-            className="rounded-full border border-gray-200 bg-white px-4 py-2 text-theme-xs font-medium text-gray-600 shadow-theme-xs hover:bg-gray-50 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-          >
-            {loading ? "Đang tải…" : "Làm mới"}
-          </button>
-          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-theme-xs font-medium text-gray-600 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-theme-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300">
             <span
               className={`size-2 rounded-full ${loadError ? "bg-error-500" : "bg-success-500"}`}
               aria-hidden
             />
-            {loadError ? "Lỗi tải dữ liệu" : "Đã đồng bộ"}
+            {loadError ? "Lỗi đồng bộ" : "Dữ liệu trực tiếp"}
           </div>
+          <button
+            type="button"
+            onClick={() => load()}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-theme-xs font-semibold text-white shadow-theme-xs transition hover:bg-brand-600 disabled:opacity-50"
+          >
+            <FiActivity className={loading ? "size-4 animate-spin" : "size-4"} />
+            {loading ? "Đang tải…" : "Làm mới dữ liệu"}
+          </button>
         </div>
       </header>
 
@@ -385,11 +415,11 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
         {kpiCards.map((k) => (
           <article
             key={k.label}
-            className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm dark:border-gray-800 dark:bg-gray-900"
+            className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm transition-shadow hover:shadow-theme-md dark:border-gray-800 dark:bg-gray-900"
           >
             <div
               className={`absolute -right-6 -top-6 size-24 rounded-full bg-gradient-to-br ${k.accent} opacity-40 blur-2xl`}
@@ -432,18 +462,22 @@ export default function AdminDashboard() {
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2 rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <section className="grid grid-cols-1 gap-6 2xl:grid-cols-12">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm 2xl:col-span-8 2xl:p-6 dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-theme-sm font-semibold text-gray-800 dark:text-white">
-              Hoạt động 7 ngày
+              Nhịp hoạt động
             </h2>
-            <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-theme-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-              Phản hồi &amp; lượt xem
-            </span>
+            <span className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">7 ngày gần nhất</span>
+          </div>
+          <div className="mb-2 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+            <span className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{formatViInt(totalResponses7Days)}</span>
+            <span className="text-theme-xs text-gray-500 dark:text-gray-400">phản hồi mới</span>
+            <span className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{formatViInt(totalViews7Days)}</span>
+            <span className="text-theme-xs text-gray-500 dark:text-gray-400">lượt xem</span>
           </div>
           {data && activity.every((d) => d.responses === 0 && d.views === 0) ? (
-            <p className="flex h-[280px] items-center justify-center text-theme-sm text-gray-500">
+            <p className="flex h-[300px] items-center justify-center text-theme-sm text-gray-500">
               Chưa có dữ liệu hoạt động 7 ngày (mảng <code className="mx-1 rounded bg-gray-100 px-1 dark:bg-gray-800">activityLast7Days</code> rỗng hoặc toàn 0).
             </p>
           ) : (
@@ -452,17 +486,17 @@ export default function AdminDashboard() {
               options={areaOptions}
               series={areaSeries}
               type="area"
-              height={280}
+              height={300}
             />
           )}
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm 2xl:col-span-4 dark:border-gray-800 dark:bg-gray-900">
           <h2 className="mb-1 text-theme-sm font-semibold text-gray-800 dark:text-white">
             Trạng thái khảo sát
           </h2>
           <p className="mb-2 text-theme-xs text-gray-500 dark:text-gray-400">
-            Phân bổ theo giai đoạn vòng đời
+            {formatViInt(totalSurveys)} khảo sát theo vòng đời
           </p>
           {!donutTotal ? (
             <p className="flex h-[320px] items-center justify-center text-center text-theme-sm text-gray-500">
@@ -474,22 +508,29 @@ export default function AdminDashboard() {
               options={donutOptions}
               series={donutSeries.length ? donutSeries : [0]}
               type="donut"
-              height={320}
+              height={300}
             />
           )}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm dark:border-gray-800 dark:bg-gray-900">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm xl:col-span-2 dark:border-gray-800 dark:bg-gray-900">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-theme-sm font-semibold text-gray-800 dark:text-white">
-              Mức hoàn thành — khảo sát nổi bật
+              Bảng xếp hạng hiệu quả
             </h2>
             <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-              Theo <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">topSurveysByCompletion</code>
+              Khảo sát có tỷ lệ hoàn thành cao nhất
             </p>
           </div>
+          {leadingSurvey && (
+            <div className="text-right">
+              <p className="text-theme-xs text-gray-500 dark:text-gray-400">Dẫn đầu</p>
+              <p className="max-w-[220px] truncate text-theme-xs font-semibold text-brand-600 dark:text-brand-400">{leadingSurvey.title}</p>
+            </div>
+          )}
         </div>
         {!topList.length ? (
           <p className="py-8 text-center text-theme-sm text-gray-500">
@@ -521,6 +562,37 @@ export default function AdminDashboard() {
             </ul>
           </>
         )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 rounded-2xl border border-gray-200 bg-gray-900 p-5 text-white shadow-theme-sm dark:border-gray-700 dark:bg-gray-950">
+          <div className="col-span-2 flex items-center justify-between border-b border-white/10 pb-4">
+            <div>
+              <p className="text-theme-xs font-semibold uppercase tracking-[0.14em] text-white/50">Tín hiệu tuần</p>
+              <h2 className="mt-1 text-lg font-semibold">Sức khỏe thu thập</h2>
+            </div>
+            <FiTarget className="size-6 text-orange-300" />
+          </div>
+          <div className="border-b border-white/10 py-3">
+            <FiBarChart2 className="mb-2 size-4 text-brand-300" />
+            <p className="text-2xl font-bold tabular-nums">{responseRate7Days == null ? "—" : `${responseRate7Days}%`}</p>
+            <p className="mt-1 text-theme-xs text-white/55">chuyển đổi xem → gửi</p>
+          </div>
+          <div className="border-b border-white/10 py-3">
+            <FiArrowUpRight className="mb-2 size-4 text-success-300" />
+            <p className="text-2xl font-bold tabular-nums">{formatViInt(Math.round(totalResponses7Days / 7))}</p>
+            <p className="mt-1 text-theme-xs text-white/55">phản hồi trung bình/ngày</p>
+          </div>
+          <div className="py-3">
+            <FiEye className="mb-2 size-4 text-orange-300" />
+            <p className="text-2xl font-bold tabular-nums">{formatViInt(totalViews7Days)}</p>
+            <p className="mt-1 text-theme-xs text-white/55">tổng lượt xem 7 ngày</p>
+          </div>
+          <div className="py-3">
+            <FiClipboard className="mb-2 size-4 text-blue-light-300" />
+            <p className="text-2xl font-bold tabular-nums">{formatViInt(data?.kpis.openSurveys ?? 0)}</p>
+            <p className="mt-1 text-theme-xs text-white/55">khảo sát đang mở</p>
+          </div>
+        </div>
       </section>
     </div>
   );

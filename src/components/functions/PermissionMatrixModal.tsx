@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Modal from "@/components/ui/modal/Modal";
 import Checkbox from "@/components/form/input/Checkbox";
+import { API_FUNCTIONS } from "@/lib/api";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -32,8 +33,6 @@ const PermissionMatrixModal = ({
   const [data, setData] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   // ======================
   // LOAD DATA
   // ======================
@@ -42,7 +41,7 @@ const PermissionMatrixModal = ({
       setLoading(true);
 
       const res = await fetch(
-        `${API_URL}/core/Functions/${functionId}`,
+        `${API_FUNCTIONS}/${functionId}`,
         {
           headers: {
             Authorization: `Bearer ${getToken()}`,
@@ -79,7 +78,7 @@ const PermissionMatrixModal = ({
     isActive: boolean
   ) => {
     try {
-      await fetch(`${API_URL}/core/Functions/update-permission`, {
+      await fetch(`${API_FUNCTIONS}/update-permission`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

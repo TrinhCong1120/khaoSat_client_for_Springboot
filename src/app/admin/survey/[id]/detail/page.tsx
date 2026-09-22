@@ -7,6 +7,7 @@ import {
   isAddressQuestionType,
   parseAddressCodesFromAnswer,
 } from "@/lib/vietnam-address-api";
+import { API_RESPONSES } from "@/lib/api";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -14,17 +15,38 @@ const getToken = () =>
 
 export default function ResponseDetailPage() {
   const { id } = useParams();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   const [data, setData] = useState<any>(null);
 
   const load = async () => {
-    const res = await fetch(`${API_URL}/survey/Results/response/${id}`, {
+    const res = await fetch(`${API_RESPONSES}/${id}`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
 
     const json = await res.json();
-    setData(json);
+    setData({
+      ...json,
+      responseId: json.responseId ?? json.id,
+      surveyName: json.surveyName ?? json.surveyTitle,
+      pages: (json.pages ?? []).map((page: any) => ({
+        ...page,
+        pageId: page.pageId ?? page.id,
+        questions: (page.questions ?? []).map((question: any) => ({
+          ...question,
+          id: question.id ?? question.questionId,
+          question: question.question ?? question.questionText,
+          type: question.type ?? question.questionTypeCode,
+          value:
+            question.value ??
+            question.formattedAnswer ??
+            question.answerText ??
+            question.answerNumber ??
+            question.answerDate ??
+            (question.optionTexts?.length
+              ? question.optionTexts.join(", ")
+              : null),
+        })),
+      })),
+    });
   };
 
   useEffect(() => {

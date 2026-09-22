@@ -12,10 +12,9 @@ import {
   normalizeApiKeyRow,
   parseJsonRes,
 } from "@/lib/apikeys";
+import { API_CHATBOT } from "@/lib/api";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-const CHATBOT_BASE = `${API_URL.replace(/\/$/, "")}/chatbot`;
+const CHATBOT_BASE = API_CHATBOT;
 
 export default function ApiKeysAdminPage() {
   const [keys, setKeys] = useState<ApiKeyListItem[]>([]);

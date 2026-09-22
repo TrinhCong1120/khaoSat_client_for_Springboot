@@ -10,11 +10,11 @@ import {
   getQuestionTypeCode,
 } from "@/types/survey";
 import { isAddressQuestionType } from "@/lib/vietnam-address-api";
+import { API_PUBLIC_SURVEYS } from "@/lib/api";
+import { persistFailedSurveyRecord } from "@/lib/failedSurveyStorage";
 
 export default function PublicSurvey() {
   const { id } = useParams();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   const [survey, setSurvey] = useState<any>(null);
   const [answers, setAnswers] = useState<any>({});
   const [errors, setErrors] = useState<any>({});
@@ -31,7 +31,7 @@ export default function PublicSurvey() {
   useEffect(() => {
     if (!id) return;
 
-    fetch(`${API_URL}/survey/PublicSurvey/${id}`)
+    fetch(`${API_PUBLIC_SURVEYS}/${id}`)
       .then((res) => res.json())
       .then((data) => {
         data.pages = data.pages || [];
@@ -47,7 +47,7 @@ export default function PublicSurvey() {
       const next = { ...prev };
       for (const page of survey.pages) {
         for (const q of page.questions || []) {
-          if (getQuestionTypeCode(q) !== "ADDRESS") continue;
+          if (!isAddressQuestionType(q)) continue;
           if (next[q.id] != null) continue;
           next[q.id] = {
             questionId: q.id,
@@ -204,16 +204,24 @@ export default function PublicSurvey() {
 
         let isEmpty = false;
 
-        if (typeCode === "ADDRESS") {
+        if (typeCode === "ADDRESS" || isAddressQuestionType(q)) {
           isEmpty =
             answer == null ||
             !hasNonBlank(answer.province) ||
             !hasNonBlank(answer.ward);
-        } else {
+        } else if (q.questionTypeId === 1 || q.questionTypeId === 2) {
+          isEmpty = !answer?.optionIds?.length;
+        } else if (q.questionTypeId === 3) {
+          isEmpty = !hasNonBlank(answer?.answerText);
+        } else if (q.questionTypeId === 4) {
           isEmpty =
-            (q.questionTypeId <= 2 && !answer?.optionIds?.length) ||
-            ((q.questionTypeId === 3 || q.questionTypeId === 4) &&
-              !answer?.answerText);
+            answer?.answerNumber == null ||
+            answer?.answerNumber === "" ||
+            !Number.isFinite(Number(answer.answerNumber));
+        } else if (q.questionTypeId === 5) {
+          isEmpty = !hasNonBlank(answer?.answerDate);
+        } else {
+          isEmpty = true;
         }
 
         if (isEmpty) {
@@ -229,21 +237,47 @@ export default function PublicSurvey() {
   const handleSubmit = async () => {
     if (!validate()) return;
 
-    const payload = buildPublicSurveySubmitAnswers(survey, answers);
-
-    const res = await fetch(`${API_URL}/survey/PublicSurvey/${id}/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers: payload }),
-    });
-
-    if (res.ok) {
-      setSubmitted(true);
-      return;
-    }
+    const enabledAnswers = Object.fromEntries(
+      Object.entries(answers).filter(([questionId]) =>
+        isEnabled(Number(questionId))
+      )
+    );
+    const payload = buildPublicSurveySubmitAnswers(survey, enabledAnswers);
 
     try {
-      const body = await res.json();
+      const res = await fetch(`${API_PUBLIC_SURVEYS}/${id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: payload }),
+      });
+
+      if (res.ok) {
+        setSubmitted(true);
+        return;
+      }
+
+      const rawText = await res.text();
+      let body: any = null;
+      try {
+        body = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        body = null;
+      }
+
+      try {
+        await persistFailedSurveyRecord({
+          surveyId: Number(id),
+          surveyTitle: survey?.title || null,
+          statusCode: res.status,
+          statusText: res.statusText,
+          message: body?.message || body?.error || rawText || "Submit lỗi",
+          url: `${API_PUBLIC_SURVEYS}/${id}/submit`,
+          payload: { answers: payload },
+        });
+      } catch {
+        // fallback silent; UI still shows the server error
+      }
+
       if (body?.questionId != null) {
         setErrors((prev: any) => ({
           ...prev,
@@ -253,10 +287,24 @@ export default function PublicSurvey() {
       } else if (body?.message) {
         alert(body.message);
       } else {
-        alert("Submit lỗi");
+        alert(`Submit lỗi (${res.status})`);
       }
-    } catch {
-      alert("Submit lỗi");
+    } catch (error) {
+      try {
+        await persistFailedSurveyRecord({
+          surveyId: Number(id),
+          surveyTitle: survey?.title || null,
+          statusCode: 0,
+          statusText: "NetworkError",
+          message:
+            error instanceof Error ? error.message : "Network request failed",
+          url: `${API_PUBLIC_SURVEYS}/${id}/submit`,
+          payload: { answers: payload },
+        });
+      } catch {
+        // noop
+      }
+      alert("Không gửi được khảo sát. Dữ liệu đã được lưu vào public/failed-surveys để xử lý sau.");
     }
   };
 
@@ -272,7 +320,7 @@ export default function PublicSurvey() {
     );
   }
 
-  const inlineTypes = [3, 5, 6];
+  const inlineTypes = [3, 4, 5];
   const isInlineQuestion = (q: any) => {
     if (getQuestionTypeCode(q) === "ADDRESS") return false;
     return inlineTypes.includes(q.questionTypeId);
@@ -394,7 +442,7 @@ export default function PublicSurvey() {
                             <div
                               className={isInlineType ? "" : "mt-3 space-y-2.5"}
                             >
-                              {typeCode === "ADDRESS" ? (
+                              {typeCode === "ADDRESS" || isAddressQuestionType(q) ? (
                                 <ProvinceWardSelect
                                   value={{
                                     provinceCode:
@@ -485,40 +533,24 @@ export default function PublicSurvey() {
                                   )}
 
                                   {q.questionTypeId === 4 && (
-                                    <textarea
-                                      rows={4}
-                                      className="w-full border border-slate-200 p-4 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-300 resize-none"
-                                      placeholder="Nhập câu trả lời chi tiết..."
-                                      disabled={!enabled}
-                                      value={answers[q.id]?.answerText || ""}
-                                      onChange={(e) =>
-                                        updateAnswer(
-                                          q.id,
-                                          e.target.value,
-                                          "answerText"
-                                        )
-                                      }
-                                    />
-                                  )}
-
-                                  {q.questionTypeId === 5 && (
                                     <input
                                       type="number"
                                       className="w-full border border-slate-200 px-4 py-2.5 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-300"
                                       placeholder="0"
                                       disabled={!enabled}
                                       value={answers[q.id]?.answerNumber ?? ""}
-                                      onChange={(e) =>
+                                      onChange={(e) => {
+                                        const value = e.target.value;
                                         updateAnswer(
                                           q.id,
-                                          Number(e.target.value),
+                                          value === "" ? "" : Number(value),
                                           "answerNumber"
-                                        )
-                                      }
+                                        );
+                                      }}
                                     />
                                   )}
 
-                                  {q.questionTypeId === 6 && (
+                                  {q.questionTypeId === 5 && (
                                     <DatePicker
                                       id={`public-answer-date-${q.id}`}
                                       placeholder="dd/mm/yyyy"

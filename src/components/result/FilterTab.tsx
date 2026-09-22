@@ -7,8 +7,7 @@ import DatePicker from "@/components/form/date-picker";
 import ResponseAnswerCell from "@/components/result/ResponseAnswerCell";
 import SearchableCodeSelect from "@/components/form/SearchableCodeSelect";
 import { isAddressQuestionType } from "@/lib/vietnam-address-api";
-
-const PROVINCES_API = "https://provinces.open-api.vn/api/v2";
+import { API_PROVINCES, API_REPORTS, API_RESPONSES, API_SURVEYS } from "@/lib/api";
 
 function isChoiceQuestionTypeId(id: unknown): boolean {
   return id === 1 || id === 2;
@@ -38,7 +37,6 @@ function dayEndIso(d: string): string | undefined {
 }
 
 export default function FilterTab({ surveyId }: any) {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
   const router = useRouter();
 
   const [survey, setSurvey] = useState<any>(null);
@@ -69,7 +67,7 @@ export default function FilterTab({ surveyId }: any) {
   // ======================
   useEffect(() => {
     const loadSurvey = async () => {
-      const res = await fetch(`${API_URL}/survey/${surveyId}`, {
+      const res = await fetch(`${API_SURVEYS}/${surveyId}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
 
@@ -91,7 +89,7 @@ export default function FilterTab({ surveyId }: any) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${PROVINCES_API}/`)
+    fetch(`${API_PROVINCES}/`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: { name: string; code: number }[]) => {
         if (cancelled) return;
@@ -118,7 +116,7 @@ export default function FilterTab({ surveyId }: any) {
     }
     let cancelled = false;
     setWardsLoading(true);
-    fetch(`${PROVINCES_API}/p/${Number(pc)}?depth=2`)
+    fetch(`${API_PROVINCES}/p/${Number(pc)}?depth=2`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: {
         wards?: { name: string; code: number }[];
@@ -151,8 +149,8 @@ export default function FilterTab({ surveyId }: any) {
     const body: Record<string, unknown> = {};
     const fromIso = dayStartIso(form.fromDate);
     const toIso = dayEndIso(form.toDate);
-    if (fromIso) body.fromDate = fromIso;
-    if (toIso) body.toDate = toIso;
+    if (fromIso) body.from = fromIso;
+    if (toIso) body.to = toIso;
     if (form.questionId) {
       body.questionId = Number(form.questionId);
       if (form.optionId) body.optionId = Number(form.optionId);
@@ -187,7 +185,7 @@ export default function FilterTab({ surveyId }: any) {
 
   const handleFilter = async () => {
     const body = buildFilterBody();
-    const res = await fetch(`${API_URL}/survey/Results/${surveyId}/filter`, {
+    const res = await fetch(`${API_RESPONSES}/survey/${surveyId}/filter`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -203,7 +201,7 @@ export default function FilterTab({ surveyId }: any) {
   const exportAnalysisFiltered = async () => {
     const body = buildFilterBody();
     const res = await fetch(
-      `${API_URL}/survey/Results/${surveyId}/export-analysis-excel`,
+      `${API_REPORTS}/survey/${surveyId}/analysis/filter`,
       {
         method: "POST",
         headers: {
@@ -384,7 +382,7 @@ export default function FilterTab({ surveyId }: any) {
             />
           )}
 
-          {selectedQuestion.questionTypeId === 5 && (
+          {selectedQuestion.questionTypeId === 4 && (
             <input
               type="number"
               className="w-full border rounded-xl px-3 py-2"
@@ -395,7 +393,7 @@ export default function FilterTab({ surveyId }: any) {
             />
           )}
 
-          {selectedQuestion.questionTypeId === 6 && (
+          {selectedQuestion.questionTypeId === 5 && (
             <DatePicker
               id={`filter-question-date-${surveyId}`}
               placeholder="dd/mm/yyyy"

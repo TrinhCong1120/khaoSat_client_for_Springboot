@@ -7,6 +7,7 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import Checkbox from "@/components/form/input/Checkbox";
+import { API_ROLES, API_USERS } from "@/lib/api";
 
 interface Role {
   id: number;
@@ -47,8 +48,6 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   // ======================
   // 🔥 LOAD ROLES
   // ======================
@@ -64,7 +63,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
           return;
         }
 
-        const res = await fetch(`${API_URL}/core/Roles`, {
+        const res = await fetch(API_ROLES, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -119,8 +118,8 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
         };
 
     const url = isEditMode
-      ? `${API_URL}/core/Users/${user.id}`
-      : `${API_URL}/core/Users`;
+      ? `${API_USERS}/${user.id}`
+      : API_USERS;
 
     const method = isEditMode ? "PUT" : "POST";
 

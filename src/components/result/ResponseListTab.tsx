@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FiEye } from "react-icons/fi";
 import ResponseAnswerCell from "@/components/result/ResponseAnswerCell";
+import { API_RESPONSES } from "@/lib/api";
 
 export default function ResponseListTab({ surveyId }: any) {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
   const router = useRouter();
 
   const [data, setData] = useState<any[]>([]);
@@ -17,14 +17,20 @@ export default function ResponseListTab({ surveyId }: any) {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch(`${API_URL}/survey/Results/${surveyId}/responses`, {
+      const res = await fetch(`${API_RESPONSES}/survey/${surveyId}`, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
       });
 
       const json = await res.json();
-      setData(json);
+      setData(
+        (Array.isArray(json) ? json : []).map((row: any) => ({
+          ...row,
+          responseId: row.responseId ?? row.id,
+          answers: row.answers ?? [],
+        }))
+      );
     };
 
     load();

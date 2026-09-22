@@ -1,4 +1,6 @@
-const PROVINCES_API = "https://provinces.open-api.vn/api/v2";
+import { API_PROVINCES } from "@/lib/api";
+
+const PROVINCES_API = API_PROVINCES;
 
 type WardRow = { name: string; code: number };
 
@@ -119,7 +121,7 @@ export function isAddressQuestionType(q: {
   return (
     t === "ADDRESS" ||
     code === "ADDRESS" ||
-    Number(q.questionTypeId) === 7
+    Number(q.questionTypeId) === 6
   );
 }
 

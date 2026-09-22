@@ -7,6 +7,7 @@ import { PlusIcon } from "@/icons";
 import { useRouter } from "next/navigation";
 import SurveyTable from "@/components/surveys/SurveyTable";
 import SurveyFormModal from "@/components/surveys/SurveyFormModal";
+import { API_SURVEYS } from "@/lib/api";
 
 export interface Survey {
   id: number;
@@ -27,13 +28,11 @@ export default function SurveyPage() {
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const router = useRouter();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   const fetchSurveys = useCallback(async () => {
     try {
       setLoading(true);
 
-      const res = await fetch(`${API_URL}/survey`, {
+      const res = await fetch(API_SURVEYS, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
@@ -61,7 +60,7 @@ export default function SurveyPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Xác nhận xóa khảo sát này?")) return;
 
-    await fetch(`${API_URL}/survey/${id}`, {
+    await fetch(`${API_SURVEYS}/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${getToken()}`,
@@ -79,8 +78,8 @@ export default function SurveyPage() {
     }
     setTogglingId(id);
     try {
-      const res = await fetch(`${API_URL}/survey/${id}/active`, {
-        method: "PATCH",
+      const res = await fetch(`${API_SURVEYS}/${id}/status`, {
+        method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",

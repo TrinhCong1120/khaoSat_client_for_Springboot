@@ -7,13 +7,13 @@ import ConditionEditor from "@/components/surveys/ConditionEditor";
 import { FiPlus, FiTrash2, FiFileText, FiSave, FiArrowLeft } from "react-icons/fi";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
+import { API_PAGES, API_SURVEYS } from "@/lib/api";
 
 const getToken = () =>
   localStorage.getItem("token") ||
   sessionStorage.getItem("token");
 
 export default function EditSurvey() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
   const { id } = useParams();
 
   const [survey, setSurvey] = useState<any>(null);
@@ -22,7 +22,7 @@ export default function EditSurvey() {
 
   // LOAD
   const reloadSurvey = async () => {
-    const res = await fetch(`${API_URL}/survey/${id}`, {
+    const res = await fetch(`${API_SURVEYS}/${id}`, {
       headers: {
         Authorization: `Bearer ${getToken()}`,
       },
@@ -51,7 +51,7 @@ export default function EditSurvey() {
   const updateSurvey = async () => {
     setLoading(true);
     try {
-      await fetch(`${API_URL}/survey/${id}`, {
+      await fetch(`${API_SURVEYS}/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -72,7 +72,7 @@ export default function EditSurvey() {
 
   // ADD PAGE
   const addPage = async () => {
-    await fetch(`${API_URL}/survey/pages`, {
+    await fetch(API_PAGES, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -90,7 +90,7 @@ export default function EditSurvey() {
 
   // UPDATE PAGE
   const updatePage = async (page: any) => {
-    await fetch(`${API_URL}/survey/pages/${page.id}`, {
+    await fetch(`${API_PAGES}/${page.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -109,7 +109,7 @@ export default function EditSurvey() {
   const deletePage = async (pageId: number) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa trang này cùng toàn bộ câu hỏi bên trong?")) return;
     
-    await fetch(`${API_URL}/survey/pages/${pageId}`, {
+    await fetch(`${API_PAGES}/${pageId}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${getToken()}`,

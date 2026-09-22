@@ -10,20 +10,18 @@ import {
   FiChevronUp,
   FiChevronDown,
 } from "react-icons/fi";
+import { API_QUESTIONS } from "@/lib/api";
 
 const getToken = () =>
   localStorage.getItem("token") ||
   sessionStorage.getItem("token");
 
 export default function QuestionEditor({ page, survey, setSurvey }: any) {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   const [savingMap, setSavingMap] = useState<{ [key: number]: string }>({});
 
   const isChoice = (type: number) => type === 1 || type === 2;
 
-  /** Khớp public survey: `questionTypeCode === "ADDRESS"` (thường `questionTypeId === 7` trên backend). */
-  const isAddressType = (type: number) => type === 7;
+  const isAddressType = (type: number) => type === 6;
 
   // ======================
   // STATE UPDATE HELPER
@@ -109,20 +107,20 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ADD QUESTION
   // ======================
   const addQuestion = async () => {
-    const res = await fetch(`${API_URL}/survey/questions`, {
+    const res = await fetch(API_QUESTIONS, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${getToken()}`,
       },
       body: JSON.stringify({
-        PageId: page.id,
-        QuestionText: "Câu hỏi mới",
-        QuestionTypeId: 1,
-        IsRequired: false,
-        OrderIndex: (page.questions?.length || 0) + 1,
-        Description: "",
-        Options: [],
+        pageId: page.id,
+        questionText: "Câu hỏi mới",
+        questionTypeId: 1,
+        isRequired: false,
+        orderIndex: (page.questions?.length || 0) + 1,
+        description: "",
+        options: [],
       }),
     });
 
@@ -143,7 +141,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   const saveQuestion = async (q: any) => {
     setSavingMap((prev) => ({ ...prev, [q.id]: "saving" }));
 
-    const res = await fetch(`${API_URL}/survey/questions/${q.id}`, {
+    const res = await fetch(`${API_QUESTIONS}/${q.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -188,7 +186,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   const deleteQuestion = async (qid: number) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa câu hỏi này?")) return;
 
-    await fetch(`${API_URL}/survey/questions/${qid}`, {
+    await fetch(`${API_QUESTIONS}/${qid}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${getToken()}`,
@@ -383,10 +381,9 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                 <option value={1}>Một lựa chọn (Radio)</option>
                 <option value={2}>Nhiều lựa chọn (Checkbox)</option>
                 <option value={3}>Trả lời ngắn (Text)</option>
-                <option value={4}>Trả lời dài (Textarea)</option>
-                <option value={5}>Số học (Number)</option>
-                <option value={6}>Ngày tháng (Date)</option>
-                <option value={7}>Địa chỉ — Tỉnh/Thành, Xã/Phường (ADDRESS)</option>
+                <option value={4}>Số học (Number)</option>
+                <option value={5}>Ngày tháng (Date)</option>
+                <option value={6}>Địa chỉ — Tỉnh/Thành, Xã/Phường (ADDRESS)</option>
               </select>
             </div>
 

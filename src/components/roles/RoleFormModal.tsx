@@ -5,6 +5,7 @@ import Modal from "@/components/ui/modal/Modal";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
+import { API_ROLES } from "@/lib/api";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -30,7 +31,6 @@ const RoleFormModal: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
   const isEditMode = !!role;
 
   // ======================
@@ -63,8 +63,8 @@ const RoleFormModal: React.FC<Props> = ({
 
       const method = isEditMode ? "PUT" : "POST";
       const url = isEditMode
-        ? `${API_URL}/core/Roles/${role?.id}`
-        : `${API_URL}/core/Roles`;
+        ? `${API_ROLES}/${role?.id}`
+        : API_ROLES;
 
       const res = await fetch(url, {
         method,

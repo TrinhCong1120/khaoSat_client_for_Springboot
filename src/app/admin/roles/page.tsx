@@ -5,6 +5,7 @@ import Button from "@/components/ui/button/Button";
 import RoleTable from "@/components/roles/RoleTable";
 import RoleFormModal from "@/components/roles/RoleFormModal";
 import { PlusIcon } from "@/icons";
+import { API_ROLES } from "@/lib/api";
 
 export interface Role {
   id: number;
@@ -21,13 +22,11 @@ export default function RolesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   const fetchRoles = useCallback(async () => {
     try {
       setLoading(true);
 
-      const res = await fetch(`${API_URL}/core/Roles`, {
+      const res = await fetch(API_ROLES, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
@@ -40,7 +39,7 @@ export default function RolesPage() {
     } finally {
       setLoading(false);
     }
-  }, [API_URL]);
+  }, []);
 
   useEffect(() => {
     fetchRoles();
@@ -49,7 +48,7 @@ export default function RolesPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Xác nhận xóa vai trò này?")) return;
 
-    await fetch(`${API_URL}/core/Roles/${id}`, {
+    await fetch(`${API_ROLES}/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${getToken()}`,

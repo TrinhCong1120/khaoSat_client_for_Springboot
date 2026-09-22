@@ -1,0 +1,40 @@
+{
+  "id": "1789704270969-54e9773b452fe",
+  "fileName": "failed_20260918_1789704270969.json",
+  "createdAt": "2026-09-18T04:04:30.969Z",
+  "surveyId": 2,
+  "surveyTitle": "Khao sat trai nghiem khach hang",
+  "statusCode": 400,
+  "statusText": "Bad Request",
+  "message": "Cau hoi bat buoc chua duoc tra loi: Ban danh gia tong the bao nhieu diem?",
+  "url": "http://localhost:8080/api/public/surveys/2/submit",
+  "payload": {
+    "answers": [
+      {
+        "questionId": 6,
+        "optionIds": [
+          2
+        ]
+      },
+      {
+        "questionId": 7,
+        "optionIds": [
+          5
+        ]
+      },
+      {
+        "questionId": 8,
+        "answerText": "22das"
+      },
+      {
+        "questionId": 9,
+        "answerText": "2"
+      },
+      {
+        "questionId": 11,
+        "province": "Thành phố Đà Nẵng",
+        "ward": "Phường Quảng Phú"
+      }
+    ]
+  }
+}

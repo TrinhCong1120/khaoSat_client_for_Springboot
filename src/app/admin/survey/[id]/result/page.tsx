@@ -6,6 +6,35 @@ import { useParams } from "next/navigation";
 import SummaryTab from "@/components/result/SummaryTab";
 import ResponseListTab from "@/components/result/ResponseListTab";
 import FilterTab from "@/components/result/FilterTab";
+import { API_REPORTS } from "@/lib/api";
+
+function normalizeReport(raw: any) {
+  if (!raw || !Array.isArray(raw.questions)) return raw;
+  return {
+    ...raw,
+    questions: raw.questions.map((question: any) => ({
+      ...question,
+      question: question.question ?? question.questionText,
+      type: question.type ?? question.questionTypeCode,
+      options: question.options ?? question.choiceStatistics?.options?.map((option: any) => ({
+        optionId: option.optionId,
+        text: option.text ?? option.optionText,
+        count: option.count,
+        percent: option.percent ?? option.percentage,
+      })),
+      stats: question.stats ?? question.numberStatistics,
+      topTexts:
+        question.topTexts ??
+        question.textStatistics?.topAnswers?.map((answer: any) => ({
+          text: answer.text ?? answer.answer,
+          count: answer.count,
+        })),
+      topProvinces:
+        question.topProvinces ?? question.addressStatistics?.topProvinces,
+      topWards: question.topWards ?? question.addressStatistics?.topWards,
+    })),
+  };
+}
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -14,8 +43,6 @@ const getToken = () =>
 export default function SurveyDashboard() {
   const { id } = useParams();
   const surveyId = String(id ?? "");
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   const [tab, setTab] = useState("list");
   const [summary, setSummary] = useState<any>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -24,14 +51,14 @@ export default function SurveyDashboard() {
   const loadSummary = async () => {
     setSummaryError(null);
     try {
-      const res = await fetch(`${API_URL}/survey/Results/${surveyId}/summary`, {
+      const res = await fetch(`${API_REPORTS}/survey/${surveyId}/statistics`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) {
         setSummaryError(`Tải thống kê thất bại (${res.status})`);
         return;
       }
-      setSummary(await res.json());
+      setSummary(normalizeReport(await res.json()));
     } catch {
       setSummaryError("Lỗi mạng khi tải thống kê");
     }
@@ -39,7 +66,7 @@ export default function SurveyDashboard() {
 
   /** GET — xuất dữ liệu thô: survey_{id}_responses.xlsx */
   const exportExcelRaw = async () => {
-    const res = await fetch(`${API_URL}/survey/Results/${surveyId}/export-excel`, {
+    const res = await fetch(`${API_REPORTS}/survey/${surveyId}/responses.xlsx`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
     if (!res.ok) return;
@@ -55,7 +82,7 @@ export default function SurveyDashboard() {
   /** GET — báo cáo phân tích: survey_{id}_analysis.xlsx */
   const exportAnalysisExcel = async () => {
     const res = await fetch(
-      `${API_URL}/survey/Results/${surveyId}/export-analysis-excel`,
+      `${API_REPORTS}/survey/${surveyId}/analysis.xlsx`,
       { headers: { Authorization: `Bearer ${getToken()}` } }
     );
     if (!res.ok) return;

@@ -5,7 +5,9 @@ import SearchableCodeSelect, {
   type CodeOption,
 } from "@/components/form/SearchableCodeSelect";
 
-const PROVINCES_API = "https://provinces.open-api.vn/api/v2";
+import { API_PROVINCES } from "@/lib/api";
+
+const PROVINCES_API = API_PROVINCES;
 
 type Province = { name: string; code: number };
 type Ward = { name: string; code: number };

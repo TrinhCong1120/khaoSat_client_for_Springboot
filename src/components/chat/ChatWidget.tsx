@@ -6,6 +6,7 @@ import { MessageCircle, Send, X } from "lucide-react";
 import Modal from "@/components/ui/modal/Modal";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { API_CHATBOT } from "@/lib/api";
 
 type ChatRole = "user" | "assistant";
 
@@ -33,9 +34,7 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-const CHATBOT_BASE = `${API_URL.replace(/\/$/, "")}/chatbot`;
+const CHATBOT_BASE = API_CHATBOT;
 
 function getRagQueryUrl() {
   return `${CHATBOT_BASE}/rag/query`;

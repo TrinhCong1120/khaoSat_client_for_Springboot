@@ -8,6 +8,7 @@ import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { API_AUTH } from "@/lib/api";
 
 /** ASP.NET Core có thể trả về chuỗi JSON thuần, ProblemDetails (detail/title), hoặc { message } */
 function getApiErrorMessage(data: unknown, fallback: string): string {
@@ -45,9 +46,6 @@ export default function SignInForm() {
 
   const router = useRouter();
 
-  const API_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
   // ======================
   // AUTO REDIRECT nếu đã login
   // ======================
@@ -71,7 +69,7 @@ export default function SignInForm() {
     try {
       setLoading(true);
 
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(`${API_AUTH}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
