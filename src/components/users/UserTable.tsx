@@ -13,8 +13,8 @@ interface UserTableProps {
 const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onDelete }) => {
   return (
     <div className="rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden bg-white dark:bg-gray-900">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[680px] text-sm text-left">
           
           {/* HEADER */}
           <thead className="bg-gray-50/50 dark:bg-gray-800/50 text-[11px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">
@@ -104,6 +104,28 @@ const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onDelete }) => {
             )}
           </tbody>
         </table>
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+        {users.length === 0 ? (
+          <div className="px-5 py-10 text-center text-sm text-gray-400">Không tìm thấy người dùng nào.</div>
+        ) : users.map((user) => (
+          <article key={user.id} className="p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">{user.username?.charAt(0)?.toUpperCase()}</div>
+                <div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{user.username}</p><p className="font-mono text-xs text-gray-400">#{user.id}</p></div>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <button aria-label="Chỉnh sửa" onClick={() => onEdit(user)} className="rounded-xl p-2 text-gray-400 hover:bg-brand-50 hover:text-brand-500"><FiEdit3 size={18} /></button>
+                <button aria-label="Xóa người dùng" onClick={() => onDelete(user.id)} className="rounded-xl p-2 text-gray-400 hover:bg-error-50 hover:text-error-500"><FiTrash2 size={18} /></button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div><p className="mb-1 text-gray-400">Vai trò</p><div className="flex flex-wrap gap-1">{user.roles?.length ? user.roles.map((role, idx) => <span key={idx} className="rounded-md border border-blue-100 bg-blue-50 px-2 py-0.5 font-bold text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400">{role}</span>) : <span className="italic text-gray-400">Chưa có vai trò</span>}</div></div>
+              <div><p className="mb-1 text-gray-400">Trạng thái</p><span className={user.isActive ? "font-medium text-success-600" : "font-medium text-gray-400"}>{user.isActive ? "● Đang hoạt động" : "● Tạm khóa"}</span></div>
+            </div>
+          </article>
+        ))}
       </div>
     </div>
   );

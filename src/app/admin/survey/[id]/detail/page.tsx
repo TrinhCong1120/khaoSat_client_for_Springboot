@@ -8,6 +8,7 @@ import {
   parseAddressCodesFromAnswer,
 } from "@/lib/vietnam-address-api";
 import { API_RESPONSES } from "@/lib/api";
+import ApiNotFound from "@/components/common/ApiNotFound";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -16,11 +17,18 @@ const getToken = () =>
 export default function ResponseDetailPage() {
   const { id } = useParams();
   const [data, setData] = useState<any>(null);
+  const [notFound, setNotFound] = useState(false);
 
   const load = async () => {
     const res = await fetch(`${API_RESPONSES}/${id}`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
+
+    if (res.status === 404) {
+      setNotFound(true);
+      return;
+    }
+    if (!res.ok) throw new Error(`Response request failed: ${res.status}`);
 
     const json = await res.json();
     setData({
@@ -52,6 +60,10 @@ export default function ResponseDetailPage() {
   useEffect(() => {
     if (id) load();
   }, [id]);
+
+  if (notFound) {
+    return <ApiNotFound title="Không tìm thấy phản hồi" description="Phản hồi khảo sát này không tồn tại hoặc đã bị xóa." href="/admin/survey" linkLabel="Về danh sách khảo sát" />;
+  }
 
   if (!data) {
     return (

@@ -20,15 +20,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true, // 🔥 bỏ qua lỗi TS
   },
-  async rewrites() {
-    return [
-      {
-        source: "/backend-api/:path*",
-        destination: "http://localhost:8080/api/:path*",
-      },
-    ];
-  },
-  
   images: {
     remotePatterns: [
       {

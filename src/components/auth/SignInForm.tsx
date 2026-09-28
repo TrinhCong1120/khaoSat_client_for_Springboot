@@ -4,141 +4,346 @@ import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
+
+import {
+  ChevronLeftIcon,
+  EyeCloseIcon,
+  EyeIcon,
+} from "@/icons";
+
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { API_AUTH } from "@/lib/api";
 
-/** ASP.NET Core có thể trả về chuỗi JSON thuần, ProblemDetails (detail/title), hoặc { message } */
-function getApiErrorMessage(data: unknown, fallback: string): string {
-  if (data == null || data === "") return fallback;
-  if (typeof data === "string") return data;
-  if (typeof data === "object" && data !== null) {
-    const o = data as Record<string, unknown>;
-    if (typeof o.detail === "string" && o.detail.trim()) return o.detail;
-    if (typeof o.message === "string" && o.message.trim()) return o.message;
-    if (typeof o.title === "string" && o.title.trim()) {
-      const t = o.title.trim();
-      if (t !== "Bad Request" && t !== "Unauthorized") return t;
-    }
-    const errs = o.errors;
-    if (errs && typeof errs === "object") {
-      const parts = Object.values(errs as Record<string, string[]>)
-        .flat()
-        .filter((x): x is string => typeof x === "string");
-      if (parts.length) return parts.join("; ");
-    }
-    if (typeof o.title === "string") return o.title;
+// ========================================
+// TYPES
+// ========================================
+
+interface LoginResponse {
+  token: string;
+  id: number;
+  username: string;
+  roles: string[];
+  permissions: string[];
+}
+
+// ========================================
+// API ERROR HANDLER
+// ========================================
+
+function getApiErrorMessage(
+  data: unknown,
+  fallback: string
+): string {
+  if (data == null || data === "") {
+    return fallback;
   }
+
+  if (typeof data === "string") {
+    // Không hiển thị nguyên trang HTML lỗi.
+    if (
+      data.trim().startsWith("<!DOCTYPE") ||
+      data.trim().startsWith("<html")
+    ) {
+      return fallback;
+    }
+
+    return data;
+  }
+
+  if (typeof data === "object") {
+    const o = data as Record<string, unknown>;
+
+    if (typeof o.detail === "string" && o.detail.trim()) {
+      return o.detail;
+    }
+
+    if (typeof o.message === "string" && o.message.trim()) {
+      return o.message;
+    }
+
+    if (typeof o.title === "string" && o.title.trim()) {
+      return o.title;
+    }
+
+    if (o.errors && typeof o.errors === "object") {
+      const errors = Object.values(
+        o.errors as Record<string, unknown>
+      )
+        .flat()
+        .filter(
+          (value): value is string =>
+            typeof value === "string"
+        );
+
+      if (errors.length > 0) {
+        return errors.join("; ");
+      }
+    }
+  }
+
   return fallback;
 }
 
-export default function SignInForm() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
+// ========================================
+// SIGN IN FORM
+// ========================================
 
+export default function SignInForm() {
+  const router = useRouter();
+
+  // Form state
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
+  // UI state
+  const [showPassword, setShowPassword] = useState(false);
+  const [isChecked, setIsChecked] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const router = useRouter();
+  // ========================================
+  // REMEMBER LOGIN
+  // ========================================
 
-  // ======================
-  // AUTO REDIRECT nếu đã login
-  // ======================
   useEffect(() => {
-    localStorage.clear();
-    sessionStorage.clear();
+    // Không xóa toàn bộ localStorage/sessionStorage.
+    // Chỉ đọc trạng thái ghi nhớ trước đó.
+
+    const remembered =
+      localStorage.getItem("rememberMe") === "true";
+
+    setIsChecked(remembered);
   }, []);
 
-  // ======================
+  // ========================================
   // HANDLE LOGIN
-  // ======================
-  const handleLogin = async (e: React.FormEvent) => {
+  // ========================================
+
+  const handleLogin = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
+
+    if (loading) return;
+
     setError(null);
 
-    if (!username || !password) {
+    const trimmedUsername = username.trim();
+
+    // Validate
+    if (!trimmedUsername || !password) {
       setError("Vui lòng nhập đầy đủ thông tin");
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      const res = await fetch(`${API_AUTH}/login`, {
+    try {
+      // ====================================
+      // API URL
+      // ====================================
+
+      // API_AUTH được lấy từ @/lib/api.
+      const loginUrl = `${API_AUTH}/login`;
+
+      // ====================================
+      // REQUEST
+      // ====================================
+
+      const response = await fetch(loginUrl, {
         method: "POST",
+
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
+
         body: JSON.stringify({
-          username,
-          password,
+          username: trimmedUsername,
+          password: password,
+          rememberMe: isChecked,
         }),
       });
 
-      let data: unknown;
-      const contentType = res.headers.get("content-type") || "";
-      try {
+      // ====================================
+      // RESPONSE
+      // ====================================
+
+      const contentType =
+        response.headers.get("content-type") || "";
+
+      const rawResponse = await response.text();
+
+      let data: unknown = null;
+
+      if (rawResponse.trim()) {
         if (contentType.includes("application/json")) {
-          data = await res.json();
+          try {
+            data = JSON.parse(rawResponse);
+          } catch {
+            throw new Error(
+              "Server trả về JSON không hợp lệ"
+            );
+          }
         } else {
-          const text = await res.text();
-          data = text.trim() ? text : null;
+          // Một số API có thể trả về JSON
+          // nhưng thiếu Content-Type.
+          try {
+            data = JSON.parse(rawResponse);
+          } catch {
+            data = rawResponse;
+          }
         }
-      } catch {
-        throw new Error("Response không hợp lệ từ server");
       }
 
-      if (!res.ok) {
+      // ====================================
+      // HTTP ERROR
+      // ====================================
+
+      if (!response.ok) {
+        console.error("Login request failed", {
+          status: response.status,
+          statusText: response.statusText,
+          contentType,
+        });
+
+        let fallback = `Đăng nhập thất bại (HTTP ${response.status})`;
+
+        switch (response.status) {
+          case 400:
+            fallback = "Dữ liệu đăng nhập không hợp lệ";
+            break;
+
+          case 401:
+            fallback =
+              "Tên đăng nhập hoặc mật khẩu không chính xác";
+            break;
+
+          case 403:
+            fallback =
+              "Truy cập bị từ chối (403). Vui lòng kiểm tra cấu hình bảo mật của Gateway hoặc Auth Service.";
+            break;
+
+          case 404:
+            fallback =
+              "Không tìm thấy API đăng nhập. Vui lòng kiểm tra đường dẫn.";
+            break;
+
+          case 429:
+            fallback =
+              "Bạn gửi quá nhiều yêu cầu. Vui lòng thử lại sau.";
+            break;
+
+          case 500:
+          case 502:
+          case 503:
+          case 504:
+            fallback =
+              "Máy chủ đang gặp sự cố. Vui lòng thử lại sau.";
+            break;
+        }
+
         setError(
-          getApiErrorMessage(data, "Đăng nhập thất bại")
+          getApiErrorMessage(data, fallback)
         );
+
         return;
       }
 
-    // ======================
-    // ✅ LƯU TRỰC TIẾP LOCAL STORAGE
-    // ======================
-    const storage = isChecked ? localStorage : sessionStorage;
+      // ====================================
+      // VALIDATE LOGIN RESPONSE
+      // ====================================
 
-    const ok = data as {
-      token: string;
-      id: number;
-      username: string;
-      roles: string[];
-      permissions: string[];
-    };
-    storage.setItem("token", ok.token);
-    storage.setItem("user", JSON.stringify({
-      id: ok.id,
-      username: ok.username,
-      roles: ok.roles,
-      permissions: ok.permissions,
-    }));
+      if (
+        typeof data !== "object" ||
+        data === null ||
+        !("token" in data) ||
+        typeof data.token !== "string" ||
+        !data.token
+      ) {
+        throw new Error(
+          "Phản hồi đăng nhập không chứa token hợp lệ"
+        );
+      }
 
+      const result = data as LoginResponse;
 
-    window.dispatchEvent(new Event("userChanged"));
-      // ======================
+      // ====================================
+      // SAVE AUTH DATA
+      // ====================================
+
+      const storage = isChecked
+        ? localStorage
+        : sessionStorage;
+
+      const otherStorage = isChecked
+        ? sessionStorage
+        : localStorage;
+
+      // Xóa phiên cũ ở vị trí lưu trữ còn lại.
+      otherStorage.removeItem("token");
+      otherStorage.removeItem("user");
+
+      storage.setItem("token", result.token);
+
+      storage.setItem(
+        "user",
+        JSON.stringify({
+          id: result.id,
+          username: result.username,
+          roles: result.roles,
+          permissions: result.permissions,
+        })
+      );
+
+      // Lưu lựa chọn ghi nhớ đăng nhập.
+      localStorage.setItem(
+        "rememberMe",
+        String(isChecked)
+      );
+
+      // ====================================
+      // NOTIFY APPLICATION
+      // ====================================
+
+      window.dispatchEvent(
+        new Event("userChanged")
+      );
+
+      // ====================================
       // REDIRECT
-      // ======================
+      // ====================================
+
       router.push("/admin");
+
     } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Lỗi kết nối server");
+      console.error("Login error:", err);
+
+      if (err instanceof TypeError) {
+        setError(
+          "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng hoặc API."
+        );
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Đã xảy ra lỗi khi đăng nhập");
+      }
+
     } finally {
       setLoading(false);
     }
   };
 
-  // ======================
+  // ========================================
   // UI
-  // ======================
+  // ========================================
+
   return (
     <div className="flex flex-col flex-1 lg:w-1/2 w-full">
+
       {/* BACK */}
       <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
         <Link
@@ -152,16 +357,25 @@ export default function SignInForm() {
 
       {/* FORM */}
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
+
         <div>
+
+          {/* HEADER */}
           <div className="mb-6">
-            <h1 className="mb-2 font-semibold text-2xl">Đăng nhập</h1>
+            <h1 className="mb-2 font-semibold text-2xl">
+              Đăng nhập
+            </h1>
+
             <p className="text-sm text-gray-500">
               Nhập tên đăng nhập và mật khẩu của bạn
             </p>
           </div>
 
           <form onSubmit={handleLogin}>
+
             <div className="space-y-6">
+
+              {/* ERROR MESSAGE */}
               {error && (
                 <div
                   role="alert"
@@ -170,54 +384,74 @@ export default function SignInForm() {
                   {error}
                 </div>
               )}
+
               {/* USERNAME */}
               <div>
                 <Label>
-                  Tên đăng nhập <span className="text-red-500">*</span>
+                  Tên đăng nhập{" "}
+                  <span className="text-red-500">*</span>
                 </Label>
+
                 <Input
                   type="text"
                   placeholder="Nhập tên đăng nhập"
                   value={username}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setUsername(e.target.value)
-                  }
+                  onChange={(
+                    e: React.ChangeEvent<HTMLInputElement>
+                  ) => setUsername(e.target.value)}
                 />
               </div>
 
               {/* PASSWORD */}
               <div>
                 <Label>
-                  Mật khẩu <span className="text-red-500">*</span>
+                  Mật khẩu{" "}
+                  <span className="text-red-500">*</span>
                 </Label>
+
                 <div className="relative">
+
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="Nhập mật khẩu"
                     value={password}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setPassword(e.target.value)
-                    }
+                    onChange={(
+                      e: React.ChangeEvent<HTMLInputElement>
+                    ) => setPassword(e.target.value)}
                   />
+
                   <span
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() =>
+                      setShowPassword(!showPassword)
+                    }
                     className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer"
                   >
-                    {showPassword ? <EyeIcon /> : <EyeCloseIcon />}
+                    {showPassword ? (
+                      <EyeIcon />
+                    ) : (
+                      <EyeCloseIcon />
+                    )}
                   </span>
+
                 </div>
               </div>
 
-              {/* REMEMBER */}
+              {/* REMEMBER PASSWORD */}
               <div className="flex items-center justify-between">
+
                 <div className="flex items-center gap-2">
+
                   <Checkbox
                     checked={isChecked}
                     onChange={(checked: boolean) =>
                       setIsChecked(checked)
                     }
                   />
-                  <span className="text-sm">Ghi nhớ đăng nhập</span>
+
+                  <span className="text-sm">
+                    Ghi nhớ đăng nhập
+                  </span>
+
                 </div>
 
                 <Link
@@ -226,21 +460,30 @@ export default function SignInForm() {
                 >
                   Quên mật khẩu?
                 </Link>
+
               </div>
 
-              {/* BUTTON */}
+              {/* SUBMIT BUTTON */}
               <Button
                 type="submit"
                 className="w-full"
                 size="sm"
                 disabled={loading}
               >
-                {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+                {loading
+                  ? "Đang đăng nhập..."
+                  : "Đăng nhập"}
               </Button>
+
             </div>
+
           </form>
+
         </div>
+
       </div>
+
     </div>
   );
-}
+
+};

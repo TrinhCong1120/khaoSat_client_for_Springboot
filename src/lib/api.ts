@@ -1,7 +1,9 @@
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
-const endpoint = (name: string, fallback: string) =>
-  process.env[name] || `${API_BASE}${fallback}`;
+const endpoint = (name: string, fallback: string) => {
+  if (process.env[name]) return process.env[name];
+  return `${API_BASE}${fallback}`;
+};
 
 export const API_AUTH = endpoint("NEXT_PUBLIC_API_AUTH", "/api/Auth");
 export const API_USERS = endpoint("NEXT_PUBLIC_API_USERS", "/api/Users");

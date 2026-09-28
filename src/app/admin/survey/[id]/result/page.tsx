@@ -7,6 +7,7 @@ import SummaryTab from "@/components/result/SummaryTab";
 import ResponseListTab from "@/components/result/ResponseListTab";
 import FilterTab from "@/components/result/FilterTab";
 import { API_REPORTS } from "@/lib/api";
+import ApiNotFound from "@/components/common/ApiNotFound";
 
 function normalizeReport(raw: any) {
   if (!raw || !Array.isArray(raw.questions)) return raw;
@@ -46,6 +47,7 @@ export default function SurveyDashboard() {
   const [tab, setTab] = useState("list");
   const [summary, setSummary] = useState<any>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   // ================= LOAD SUMMARY (GET /api/Results/{id}/summary) =================
   const loadSummary = async () => {
@@ -55,6 +57,10 @@ export default function SurveyDashboard() {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) {
+        if (res.status === 404) {
+          setNotFound(true);
+          return;
+        }
         setSummaryError(`Tải thống kê thất bại (${res.status})`);
         return;
       }
@@ -99,6 +105,10 @@ export default function SurveyDashboard() {
     if (!surveyId) return;
     loadSummary();
   }, [surveyId]);
+
+  if (notFound) {
+    return <ApiNotFound title="Không tìm thấy khảo sát" description="Không tìm thấy dữ liệu thống kê cho khảo sát này." href="/admin/survey" linkLabel="Về danh sách khảo sát" />;
+  }
 
   if (summaryError) {
     return (

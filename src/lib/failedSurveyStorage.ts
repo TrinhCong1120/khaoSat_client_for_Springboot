@@ -1,3 +1,5 @@
+import { API_FAILED_SURVEYS } from "@/lib/api";
+
 export type FailedSurveyRecord = {
   id: string;
   fileName: string;
@@ -18,7 +20,13 @@ export type FailedSurveyFileItem = {
   content?: string | null;
 };
 
-const FAILED_SURVEYS_API = "/api/failed-surveys";
+const getToken = () =>
+  localStorage.getItem("token") || sessionStorage.getItem("token");
+
+const authHeaders = (): HeadersInit => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 export const persistFailedSurveyRecord = async (
   record: Omit<FailedSurveyRecord, "id" | "fileName" | "createdAt">
@@ -36,9 +44,12 @@ export const persistFailedSurveyRecord = async (
     ...record,
   };
 
-  const res = await fetch(FAILED_SURVEYS_API, {
+  const res = await fetch(API_FAILED_SURVEYS, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
     body: JSON.stringify(entry),
   });
 
@@ -50,8 +61,13 @@ export const persistFailedSurveyRecord = async (
 };
 
 export const listFailedSurveyFiles = async (): Promise<FailedSurveyFileItem[]> => {
-  const res = await fetch(FAILED_SURVEYS_API, { cache: "no-store" });
-  if (!res.ok) return [];
+  const res = await fetch(`${API_FAILED_SURVEYS}?includeContent=false`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Không tải được danh sách file lỗi (${res.status})`);
+  }
 
   const data = await res.json();
   return Array.isArray(data)
@@ -65,22 +81,29 @@ export const listFailedSurveyFiles = async (): Promise<FailedSurveyFileItem[]> =
 };
 
 export const getFailedSurveyFileContent = async (fileName: string) => {
-  const res = await fetch(`${FAILED_SURVEYS_API}?file=${encodeURIComponent(fileName)}`, {
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `${API_FAILED_SURVEYS}/${encodeURIComponent(fileName)}/download`,
+    {
+      cache: "no-store",
+      headers: authHeaders(),
+    }
+  );
   if (!res.ok) return null;
   return await res.text();
 };
 
 export const deleteFailedSurveyFile = async (fileName: string) => {
   const res = await fetch(
-    `${FAILED_SURVEYS_API}?file=${encodeURIComponent(fileName)}`,
-    { method: "DELETE" }
+    `${API_FAILED_SURVEYS}/${encodeURIComponent(fileName)}`,
+    { method: "DELETE", headers: authHeaders() }
   );
   return res.ok;
 };
 
 export const deleteAllFailedSurveyFiles = async () => {
-  const res = await fetch(FAILED_SURVEYS_API, { method: "DELETE" });
+  const res = await fetch(API_FAILED_SURVEYS, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
   return res.ok;
 };

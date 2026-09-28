@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import SurveyTable from "@/components/surveys/SurveyTable";
 import SurveyFormModal from "@/components/surveys/SurveyFormModal";
 import { API_SURVEYS } from "@/lib/api";
+import Pagination from "@/components/ui/pagination/Pagination";
 
 export interface Survey {
   id: number;
@@ -26,6 +27,9 @@ export default function SurveyPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const paginatedSurveys = surveys.slice((page - 1) * pageSize, page * pageSize);
 
   const router = useRouter();
   const fetchSurveys = useCallback(async () => {
@@ -68,6 +72,7 @@ export default function SurveyPage() {
     });
 
     setSurveys((prev) => prev.filter((s) => s.id !== id));
+    setPage((current) => Math.min(current, Math.max(1, Math.ceil((surveys.length - 1) / pageSize))));
   };
 
   const handleToggleActive = async (id: number, nextActive: boolean) => {
@@ -103,8 +108,8 @@ export default function SurveyPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-3 sm:p-4 lg:p-6">
+      <div className="flex flex-col items-stretch gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
             Quản lý khảo sát
@@ -133,13 +138,16 @@ export default function SurveyPage() {
             Đang tải danh sách khảo sát...
           </div>
         ) : (
-          <SurveyTable
-            surveys={surveys}
-            togglingId={togglingId}
-            onEdit={(id) => router.push(`/admin/survey/${id}/edit`)}
-            onDelete={handleDelete}
-            onToggleActive={handleToggleActive}
-          />
+          <>
+            <SurveyTable
+              surveys={paginatedSurveys}
+              togglingId={togglingId}
+              onEdit={(id) => router.push(`/admin/survey/${id}/edit`)}
+              onDelete={handleDelete}
+              onToggleActive={handleToggleActive}
+            />
+            <Pagination page={page} pageSize={pageSize} total={surveys.length} onPageChange={setPage} />
+          </>
         )}
       </div>
 

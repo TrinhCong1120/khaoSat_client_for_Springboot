@@ -7,6 +7,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import { getToken } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { API_CHATBOT } from "@/lib/api";
+import Pagination from "@/components/ui/pagination/Pagination";
 
 const CHATBOT_BASE = API_CHATBOT;
 
@@ -98,6 +99,10 @@ export default function ChatbotDataPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<FilesResponse | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const files = data?.files ?? [];
+  const paginatedFiles = files.slice((page - 1) * pageSize, page * pageSize);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
@@ -381,8 +386,8 @@ export default function ChatbotDataPage() {
       )}
 
       {!loading && !error && (
-        <div className="overflow-x-auto bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
-          <table className="min-w-full text-sm">
+        <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <div className="hidden overflow-x-auto md:block"><table className="min-w-[680px] w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800 text-left">
                 <th className="px-4 py-3 font-medium">Tên file</th>
@@ -399,7 +404,7 @@ export default function ChatbotDataPage() {
                   </td>
                 </tr>
               ) : (
-                data.files.map((f) => (
+                paginatedFiles.map((f) => (
                   <tr
                     key={f.name}
                     className="border-b border-gray-100 dark:border-gray-800/80"
@@ -433,7 +438,9 @@ export default function ChatbotDataPage() {
                 ))
               )}
             </tbody>
-          </table>
+          </table></div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">{!data?.files?.length ? <div className="px-4 py-8 text-center text-sm text-gray-500">Chưa có file.</div> : paginatedFiles.map((f) => <article key={f.name} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><p className="min-w-0 break-all font-medium">{f.name}</p><span className="shrink-0 font-mono text-xs text-gray-500">{f.size.toLocaleString()} B</span></div><p className="text-xs text-gray-500">Sửa đổi: {f.modifiedAt || "—"}</p><div className="flex gap-4 text-xs"><button type="button" disabled={busy} className="font-medium text-brand-600 disabled:opacity-50" onClick={() => void downloadFile(f.name)}>Tải xuống</button><button type="button" disabled={busy} className="font-medium text-red-600 disabled:opacity-50" onClick={() => void deleteFile(f.name)}>Xóa</button></div></article>)}</div>
+          <Pagination page={page} pageSize={pageSize} total={files.length} onPageChange={setPage} />
         </div>
       )}
     </div>

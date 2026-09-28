@@ -8,6 +8,7 @@ import { FiPlus, FiTrash2, FiFileText, FiSave, FiArrowLeft } from "react-icons/f
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import { API_PAGES, API_SURVEYS } from "@/lib/api";
+import ApiNotFound from "@/components/common/ApiNotFound";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -19,6 +20,7 @@ export default function EditSurvey() {
   const [survey, setSurvey] = useState<any>(null);
   const [conditions, setConditions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   // LOAD
   const reloadSurvey = async () => {
@@ -27,6 +29,13 @@ export default function EditSurvey() {
         Authorization: `Bearer ${getToken()}`,
       },
     });
+
+    if (res.status === 404) {
+      setNotFound(true);
+      setSurvey(null);
+      return;
+    }
+    if (!res.ok) throw new Error(`Survey request failed: ${res.status}`);
 
     const data = await res.json();
 
@@ -118,6 +127,10 @@ export default function EditSurvey() {
 
     reloadSurvey();
   };
+
+  if (notFound) {
+    return <ApiNotFound title="Không tìm thấy khảo sát" description="Khảo sát này không tồn tại hoặc đã bị xóa." href="/admin/survey" linkLabel="Về danh sách khảo sát" />;
+  }
 
   if (!survey) {
     return (
@@ -212,10 +225,20 @@ export default function EditSurvey() {
 
           <div className="space-y-8">
             {survey.pages.map((page: any, index: number) => (
-              <div
-                key={page.id}
-                className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl shadow-sm overflow-hidden"
-              >
+              <div key={page.id}>
+                {index > 0 && (
+                  <div className="group flex h-10 items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={addPage}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-600 opacity-0 transition-opacity hover:bg-brand-500 hover:text-white focus:opacity-100 group-hover:opacity-100 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+                    >
+                      <FiPlus size={14} />
+                      Thêm trang ở đây
+                    </button>
+                  </div>
+                )}
+                <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl shadow-sm overflow-hidden">
                 {/* PAGE HEADER */}
                 <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-4 flex-1 min-w-[300px]">
@@ -284,12 +307,23 @@ export default function EditSurvey() {
                     conditions={conditions}
                   />
                 </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
         {/* CONDITIONS */}
+        <div className="group flex h-10 items-center justify-center">
+          <button
+            type="button"
+            onClick={addPage}
+            className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-600 opacity-0 transition-opacity hover:bg-brand-500 hover:text-white focus:opacity-100 group-hover:opacity-100 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+          >
+            <FiPlus size={14} />
+            Thêm trang trước điều kiện
+          </button>
+        </div>
         <div className="pt-4">
           <ConditionEditor
             survey={survey}

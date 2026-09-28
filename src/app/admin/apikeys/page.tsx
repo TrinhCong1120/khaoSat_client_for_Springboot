@@ -13,6 +13,7 @@ import {
   parseJsonRes,
 } from "@/lib/apikeys";
 import { API_CHATBOT } from "@/lib/api";
+import Pagination from "@/components/ui/pagination/Pagination";
 
 const CHATBOT_BASE = API_CHATBOT;
 
@@ -20,6 +21,9 @@ export default function ApiKeysUserPage() {
   const [keys, setKeys] = useState<ApiKeyListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const paginatedKeys = keys.slice((page - 1) * pageSize, page * pageSize);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -181,8 +185,8 @@ export default function ApiKeysUserPage() {
       )}
 
       {!loading && !error && (
-        <div className="overflow-x-auto bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
-          <table className="min-w-full text-sm">
+        <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <div className="hidden overflow-x-auto md:block"><table className="min-w-[760px] w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800 text-left">
                 <th className="px-4 py-3 font-medium">Prefix</th>
@@ -201,7 +205,7 @@ export default function ApiKeysUserPage() {
                   </td>
                 </tr>
               ) : (
-                keys.map((row) => (
+                paginatedKeys.map((row) => (
                   <tr
                     key={row.id}
                     className="border-b border-gray-100 dark:border-gray-800/80"
@@ -239,7 +243,9 @@ export default function ApiKeysUserPage() {
                 ))
               )}
             </tbody>
-          </table>
+          </table></div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">{keys.length === 0 ? <div className="px-4 py-8 text-center text-sm text-gray-500">Chưa có key.</div> : paginatedKeys.map((row) => <article key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-sm font-semibold">{row.prefix}</p><p className="mt-1 truncate text-sm text-gray-600 dark:text-gray-300">{row.name || "—"}</p></div><span className={`rounded-full px-2 py-1 text-[11px] font-medium ${row.revoked ? "bg-red-50 text-red-600" : row.isActive ? "bg-success-50 text-success-600" : "bg-gray-100 text-gray-500"}`}>{row.revoked ? "Đã thu hồi" : row.isActive ? "Đang hoạt động" : "Tạm tắt"}</span></div><p className="text-xs text-gray-500">Cập nhật: {row.updatedAt || row.createdAt || "—"}</p><div className="flex gap-4 text-xs"><button type="button" className="font-medium text-brand-600 disabled:opacity-40" onClick={() => { setEditRow(row); setEditName(row.name); setEditActive(row.isActive); }} disabled={row.revoked}>Sửa</button><button type="button" className="font-medium text-red-600 disabled:opacity-40" onClick={() => void revoke(row)} disabled={row.revoked}>Thu hồi</button></div></article>)}</div>
+          <Pagination page={page} pageSize={pageSize} total={keys.length} onPageChange={setPage} />
         </div>
       )}
 

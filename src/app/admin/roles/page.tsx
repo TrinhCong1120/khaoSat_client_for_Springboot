@@ -6,6 +6,7 @@ import RoleTable from "@/components/roles/RoleTable";
 import RoleFormModal from "@/components/roles/RoleFormModal";
 import { PlusIcon } from "@/icons";
 import { API_ROLES } from "@/lib/api";
+import Pagination from "@/components/ui/pagination/Pagination";
 
 export interface Role {
   id: number;
@@ -21,6 +22,9 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const paginatedRoles = roles.slice((page - 1) * pageSize, page * pageSize);
 
   const fetchRoles = useCallback(async () => {
     try {
@@ -56,12 +60,13 @@ export default function RolesPage() {
     });
 
     setRoles((prev) => prev.filter((r) => r.id !== id));
+    setPage((current) => Math.min(current, Math.max(1, Math.ceil((roles.length - 1) / pageSize))));
   };
 
   return (
     <div className="p-4 lg:p-6">
       {/* ===== HEADER ===== */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col items-stretch gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
             Quản lý vai trò
@@ -73,7 +78,7 @@ export default function RolesPage() {
 
         <Button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2"
+          className="flex w-full items-center justify-center gap-2 sm:w-auto"
         >
           <PlusIcon className="w-4 h-4" />
           Thêm vai trò
@@ -94,14 +99,17 @@ export default function RolesPage() {
               Đang tải danh sách vai trò...
             </div>
           ) : (
-            <RoleTable
-              roles={roles}
-              onEdit={(r) => {
-                setEditingRole(r);
-                setIsModalOpen(true);
-              }}
-              onDelete={handleDelete}
-            />
+            <>
+              <RoleTable
+                roles={paginatedRoles}
+                onEdit={(r) => {
+                  setEditingRole(r);
+                  setIsModalOpen(true);
+                }}
+                onDelete={handleDelete}
+              />
+              <Pagination page={page} pageSize={pageSize} total={roles.length} onPageChange={setPage} />
+            </>
           )}
         </div>
       </div>

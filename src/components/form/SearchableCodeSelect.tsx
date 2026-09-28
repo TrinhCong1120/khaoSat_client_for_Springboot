@@ -20,6 +20,7 @@ type Props = {
   allowNull?: boolean;
   nullLabel?: string;
   allowCodeInput?: boolean;
+  clearable?: boolean;
 };
 
 function norm(s: string) {
@@ -41,6 +42,7 @@ export default function SearchableCodeSelect({
   allowNull = false,
   nullLabel = "— Bỏ chọn —",
   allowCodeInput = true,
+  clearable = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -109,7 +111,7 @@ export default function SearchableCodeSelect({
         aria-expanded={open}
         aria-haspopup="listbox"
         placeholder={placeholder}
-        className={inputClass}
+        className={`${inputClass} ${clearable && selectedLabel ? "pr-10" : ""}`}
         value={open ? query : selectedLabel}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -139,6 +141,21 @@ export default function SearchableCodeSelect({
           }
         }}
       />
+      {clearable && selectedLabel && !disabled && (
+        <button
+          type="button"
+          aria-label={`Xóa ${ariaLabel || "lựa chọn"}`}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-1.5 py-0.5 text-lg leading-none text-slate-400 transition hover:bg-slate-100 hover:text-red-500 dark:hover:bg-gray-800"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onChange(null);
+            setOpen(false);
+            setQuery("");
+          }}
+        >
+          ×
+        </button>
+      )}
       {showList && (
         <ul
           role="listbox"

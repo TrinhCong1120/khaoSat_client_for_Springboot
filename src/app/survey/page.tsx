@@ -75,7 +75,7 @@ export default function SurveyNavigationPage() {
             </p>
             
             <Link 
-              href="/survey/8" 
+              href="/survey/4" 
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-blue-700/30"
             >
               Bắt đầu khảo sát
@@ -98,7 +98,7 @@ export default function SurveyNavigationPage() {
             </p>
             
             <Link 
-              href="/survey/7" 
+              href="/survey/3" 
               className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-green-600/30"
             >
               Bắt đầu khảo sát

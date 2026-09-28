@@ -2,8 +2,9 @@ import React from "react";
 
 const FunctionTable = ({ functions, onPermission }: any) => {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+    <div>
+      <div className="hidden overflow-x-auto md:block">
+      <table className="w-full min-w-[560px] text-sm text-left text-gray-500 dark:text-gray-400">
         
         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-800 dark:text-gray-400">
           <tr>
@@ -53,6 +54,12 @@ const FunctionTable = ({ functions, onPermission }: any) => {
           )}
         </tbody>
       </table>
+      </div>
+      <div className="divide-y divide-gray-200 dark:divide-gray-800 md:hidden">
+        {functions.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-500">Không tìm thấy chức năng nào.</div> : functions.map((f: any) => (
+          <article key={f.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold text-gray-900 dark:text-gray-100">{f.name}</p><p className="mt-1 font-mono text-xs text-gray-400">#{f.id}</p></div><span className="shrink-0 rounded border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400">{f.code}</span></div><button onClick={() => onPermission(f.id)} className="w-full rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600">Phân quyền</button></article>
+        ))}
+      </div>
     </div>
   );
 };

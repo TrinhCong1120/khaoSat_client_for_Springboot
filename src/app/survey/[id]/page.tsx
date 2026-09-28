@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import DatePicker from "@/components/form/date-picker";
 import ProvinceWardSelect from "@/components/form/ProvinceWardSelect";
 import type { ProvinceWardValue } from "@/components/form/ProvinceWardSelect";
@@ -19,6 +20,8 @@ export default function PublicSurvey() {
   const [answers, setAnswers] = useState<any>({});
   const [errors, setErrors] = useState<any>({});
   const [submitted, setSubmitted] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "not-found">("loading");
 
   const parseSourceValueTokens = (sourceValue: string) =>
     String(sourceValue || "")
@@ -31,12 +34,31 @@ export default function PublicSurvey() {
   useEffect(() => {
     if (!id) return;
 
+    setLoadState("loading");
     fetch(`${API_PUBLIC_SURVEYS}/${id}`)
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          if (res.status === 404) return null;
+          throw new Error(`Survey request failed: ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
-        data.pages = data.pages || [];
-        data.conditions = data.conditions || [];
-        setSurvey(data);
+        const surveyData = data?.data ?? data;
+        if (!surveyData || typeof surveyData !== "object" || !Array.isArray(surveyData.pages)) {
+          setSurvey({ pages: [], conditions: [] });
+          setLoadState("not-found");
+          return;
+        }
+
+        surveyData.pages = surveyData.pages || [];
+        surveyData.conditions = surveyData.conditions || [];
+        setSurvey(surveyData);
+        setLoadState("ready");
+      })
+      .catch(() => {
+        setSurvey({ pages: [], conditions: [] });
+        setLoadState("not-found");
       });
   }, [id]);
 
@@ -191,10 +213,14 @@ export default function PublicSurvey() {
     }));
   };
 
-  const validate = () => {
+  const validate = (pageIndex?: number) => {
     const newErrors: any = {};
 
-    survey.pages.forEach((p: any) => {
+    const pagesToValidate =
+      pageIndex == null ? survey.pages : [survey.pages[pageIndex]];
+
+    pagesToValidate.forEach((p: any) => {
+      if (!p) return;
       p.questions.forEach((q: any) => {
         if (!isEnabled(q.id)) return;
         if (!q.isRequired) return;
@@ -208,7 +234,11 @@ export default function PublicSurvey() {
           isEmpty =
             answer == null ||
             !hasNonBlank(answer.province) ||
-            !hasNonBlank(answer.ward);
+            !hasNonBlank(answer.ward) ||
+            !Number.isFinite(Number(answer.provinceCode)) ||
+            Number(answer.provinceCode) <= 0 ||
+            !Number.isFinite(Number(answer.wardCode)) ||
+            Number(answer.wardCode) <= 0;
         } else if (q.questionTypeId === 1 || q.questionTypeId === 2) {
           isEmpty = !answer?.optionIds?.length;
         } else if (q.questionTypeId === 3) {
@@ -232,6 +262,15 @@ export default function PublicSurvey() {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const goToPage = (nextPage: number) => {
+    setCurrentPage(nextPage);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleNextPage = () => {
+    if (validate(currentPage)) goToPage(currentPage + 1);
   };
 
   const handleSubmit = async () => {
@@ -310,311 +349,206 @@ export default function PublicSurvey() {
 
   if (!survey) return <div className="p-10">Đang tải...</div>;
 
+  if (loadState === "loading") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4 py-10">
+        <div className="text-sm text-gray-500">Đang tải khảo sát...</div>
+      </main>
+    );
+  }
+
+  if (loadState === "not-found" || !survey) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4 py-10 text-[#1f2937]">
+        <section className="w-full max-w-md rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center shadow-sm sm:px-10">
+          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-full bg-indigo-50 text-2xl font-bold text-indigo-600">404</div>
+          <h1 className="text-2xl font-bold text-gray-900">Khảo sát không tồn tại</h1>
+          <p className="mt-2 text-sm leading-6 text-gray-500">Khảo sát bạn đang truy cập không tồn tại, đã bị xóa hoặc đường dẫn không chính xác.</p>
+          <Link href="/survey" className="mt-6 inline-flex rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">Về danh sách khảo sát</Link>
+        </section>
+      </main>
+    );
+  }
+
   if (submitted) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <h2 className="text-xl font-semibold text-green-600">
-          Gửi khảo sát thành công!
-        </h2>
+      <div className="min-h-screen bg-[#f5f7fb] px-4 py-10 text-[#1f2937]">
+        <div className="mx-auto max-w-[760px] rounded-xl bg-white px-8 py-12 text-center shadow-[0_2px_8px_rgba(0,0,0,0.05)]">
+          <div className="mx-auto mb-5 flex h-[65px] w-[65px] items-center justify-center rounded-full bg-green-100 text-[32px] font-bold text-green-600">
+            ✓
+          </div>
+          <h2 className="mb-2 text-2xl font-bold">Cảm ơn bạn!</h2>
+          <p className="text-gray-500">Câu trả lời của bạn đã được ghi nhận.</p>
+        </div>
       </div>
     );
   }
 
-  const inlineTypes = [3, 4, 5];
-  const isInlineQuestion = (q: any) => {
-    if (getQuestionTypeCode(q) === "ADDRESS") return false;
-    return inlineTypes.includes(q.questionTypeId);
-  };
+  const pages = survey.pages || [];
+  const pageCount = Math.max(pages.length, 1);
+  const page = pages[currentPage];
+  const pageQuestions = page?.questions || [];
+  const questionOffset = pages
+    .slice(0, currentPage)
+    .reduce((total: number, item: any) => total + (item.questions?.length || 0), 0);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 text-sm font-sans mb-12">
-      {(() => {
-        const allQuestions: {
-          q: any;
-          pageTitle: string;
-          pageId: any;
-          isFirstOfPage: boolean;
-        }[] = [];
-        survey.pages.forEach((page: any) => {
-          page.questions.forEach((q: any, qi: number) => {
-            allQuestions.push({
-              q,
-              pageTitle: page.title?.trim() || "",
-              pageId: page.id,
-              isFirstOfPage: qi === 0,
-            });
-          });
-        });
+    <main className="min-h-screen bg-[#f5f7fb] px-4 py-5 text-[#1f2937] sm:py-10">
+      <div className="mx-auto w-full max-w-[760px]">
+        <section className="mb-[18px] rounded-xl border-t-[5px] border-indigo-600 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.05)] sm:p-7">
+          <h1 className="mb-2 text-[22px] font-bold sm:text-[26px]">{survey.title || "Khảo sát mức độ hài lòng"}</h1>
+          <p className="leading-relaxed text-gray-500">
+            {survey.description || "Cảm ơn bạn đã dành thời gian tham gia khảo sát. Ý kiến của bạn sẽ giúp chúng tôi cải thiện chất lượng dịch vụ."}
+          </p>
+          <div className="mb-2 mt-[22px] flex justify-between text-sm text-gray-500">
+            <span>Trang {Math.min(currentPage + 1, pageCount)} / {pageCount}</span>
+            <span>{Math.round(((currentPage + 1) / pageCount) * 100)}%</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-gray-200">
+            <div
+              className="h-full bg-indigo-600 transition-[width] duration-300"
+              style={{ width: `${((currentPage + 1) / pageCount) * 100}%` }}
+            />
+          </div>
+        </section>
 
-        const groupedQuestions: { group: typeof allQuestions }[] = [];
-        let i = 0;
-        while (i < allQuestions.length) {
-          const item = allQuestions[i];
-          if (isInlineQuestion(item.q)) {
-            const nextItem = allQuestions[i + 1];
-            if (nextItem && isInlineQuestion(nextItem.q)) {
-              groupedQuestions.push({ group: [item, nextItem] });
-              i += 2;
-            } else {
-              groupedQuestions.push({ group: [item] });
-              i += 1;
-            }
-          } else {
-            groupedQuestions.push({ group: [item] });
-            i += 1;
-          }
-        }
+        <section>
+          <div className="mx-1 mb-3 mt-[26px]">
+            <h2 className="text-[19px] font-bold">{page?.title || `Thông tin khảo sát`}</h2>
+          </div>
 
-        return (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-8">
-            <button
-              onClick={() => window.history.back()}
-              className="text-sm font-medium text-slate-400 hover:text-slate-600 mb-4 flex items-center transition-colors"
-            >
-              &larr; Quay lại
-            </button>
+          {pageQuestions.map((q: any, questionIndex: number) => {
+            const enabled = isEnabled(q.id);
+            const typeCode = getQuestionTypeCode(q);
+            const isAddress = typeCode === "ADDRESS" || isAddressQuestionType(q);
 
-            <h1 className="text-2xl font-bold text-blue-700 mb-2 flex items-center gap-2">
-              <span className="text-2xl">🏠</span> {survey.title}
-            </h1>
-
-            {survey.description && (
-              <p className="text-slate-500 font-medium">{survey.description}</p>
-            )}
-
-            <div className="border-b-2 border-blue-50 my-8"></div>
-
-            <div className="space-y-6">
-              {groupedQuestions.map(({ group }, groupIndex) => {
-                const isGroup = group.length > 1;
-                const firstItem = group[0];
-                const showSectionTitle =
-                  firstItem.isFirstOfPage && firstItem.pageTitle !== "";
-
-                return (
-                  <div key={groupIndex}>
-                    {showSectionTitle && (
-                      <div className="mb-6 mt-2">
-                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-3">
-                          📝 {firstItem.pageTitle}
-                        </h2>
-                        <div className="border-b-3 border-blue-700"></div>
-                      </div>
-                    )}
-
-                    <div
-                      className={
-                        isGroup ? "grid grid-cols-1 md:grid-cols-2 gap-6" : ""
-                      }
-                    >
-                      {group.map((item) => {
-                        const { q } = item;
-                        const enabled = isEnabled(q.id);
-                        const isInlineType = isInlineQuestion(q);
-                        const typeCode = getQuestionTypeCode(q);
-
-                        return (
-                          <div
-                            key={q.id}
-                            className={
-                              !enabled
-                                ? "opacity-30 pointer-events-none grayscale"
-                                : ""
-                            }
-                          >
-                            <p
-                              className={
-                                "font-semibold mb-1 text-sm uppercase tracking-widest"
-                              }
-                            >
-                              {q.questionText}
-                              {q.isRequired && (
-                                <span className="text-red-500 ml-1.5">*</span>
-                              )}
-                            </p>
-
-                            {q.description && (
-                              <p className=" text-red-400 text-sm mb-3 leading-relaxed">
-                                {q.description}
-                              </p>
-                            )}
-
-                            <div
-                              className={isInlineType ? "" : "mt-3 space-y-2.5"}
-                            >
-                              {typeCode === "ADDRESS" || isAddressQuestionType(q) ? (
-                                <ProvinceWardSelect
-                                  value={{
-                                    provinceCode:
-                                      answers[q.id]?.provinceCode ?? 48,
-                                    wardCode:
-                                      answers[q.id]?.wardCode != null &&
-                                      Number.isFinite(answers[q.id].wardCode)
-                                        ? answers[q.id].wardCode
-                                        : null,
-                                    province: String(
-                                      answers[q.id]?.province ?? ""
-                                    ),
-                                    ward: String(answers[q.id]?.ward ?? ""),
-                                  }}
-                                  onChange={(next) =>
-                                    updateAddressAnswer(q.id, next)
-                                  }
-                                  disabled={!enabled}
-                                />
-                              ) : (
-                                <>
-                                  {q.questionTypeId === 1 &&
-                                    q.options?.map((o: any) => (
-                                      <label
-                                        key={o.id}
-                                        className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-blue-300 transition-all cursor-pointer"
-                                      >
-                                        <input
-                                          type="radio"
-                                          name={`q-${q.id}`}
-                                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                          disabled={!enabled}
-                                          checked={
-                                            answers[q.id]?.optionIds?.includes(
-                                              o.id
-                                            ) || false
-                                          }
-                                          onChange={() =>
-                                            handleOption(q.id, o.id, false)
-                                          }
-                                        />
-                                        <span className="text-slate-700 font-medium text-[14px]">
-                                          {o.optionText}
-                                        </span>
-                                      </label>
-                                    ))}
-
-                                  {q.questionTypeId === 2 &&
-                                    q.options?.map((o: any) => (
-                                      <label
-                                        key={o.id}
-                                        className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-blue-300 transition-all cursor-pointer"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                          disabled={!enabled}
-                                          checked={
-                                            answers[q.id]?.optionIds?.includes(
-                                              o.id
-                                            ) || false
-                                          }
-                                          onChange={() =>
-                                            handleOption(q.id, o.id, true)
-                                          }
-                                        />
-                                        <span className="text-slate-700 font-medium text-[14px]">
-                                          {o.optionText}
-                                        </span>
-                                      </label>
-                                    ))}
-
-                                  {q.questionTypeId === 3 && (
-                                    <input
-                                      type="text"
-                                      className="w-full border border-slate-200 px-4 py-2.5 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-300"
-                                      placeholder="Nhập thông tin..."
-                                      disabled={!enabled}
-                                      value={answers[q.id]?.answerText || ""}
-                                      onChange={(e) =>
-                                        updateAnswer(
-                                          q.id,
-                                          e.target.value,
-                                          "answerText"
-                                        )
-                                      }
-                                    />
-                                  )}
-
-                                  {q.questionTypeId === 4 && (
-                                    <input
-                                      type="number"
-                                      className="w-full border border-slate-200 px-4 py-2.5 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-300"
-                                      placeholder="0"
-                                      disabled={!enabled}
-                                      value={answers[q.id]?.answerNumber ?? ""}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        updateAnswer(
-                                          q.id,
-                                          value === "" ? "" : Number(value),
-                                          "answerNumber"
-                                        );
-                                      }}
-                                    />
-                                  )}
-
-                                  {q.questionTypeId === 5 && (
-                                    <DatePicker
-                                      id={`public-answer-date-${q.id}`}
-                                      placeholder="dd/mm/yyyy"
-                                      disabled={!enabled}
-                                      defaultDate={
-                                        answers[q.id]?.answerDate || undefined
-                                      }
-                                      onChange={(_, dateStr) =>
-                                        updateAnswer(
-                                          q.id,
-                                          dateStr as string,
-                                          "answerDate"
-                                        )
-                                      }
-                                    />
-                                  )}
-                                </>
-                              )}
-
-                              {errors[q.id] && (
-                                <p className="text-red-500 text-xs font-semibold mt-2 flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full inline-block"></span>
-                                  {errors[q.id]}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+            return (
+              <article
+                key={q.id}
+                className={`mb-3 rounded-xl border bg-white p-[18px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-colors sm:p-[22px] ${
+                  enabled ? "border-transparent" : "border-gray-200 bg-[#fafafa]"
+                }`}
+              >
+                {!enabled && (
+                  <div className="mb-4 flex items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-gray-100 px-4 py-3 text-gray-500">
+                    <div className="flex h-9 w-9 min-w-9 items-center justify-center rounded-full bg-gray-200 text-[17px]">🔒</div>
+                    <div>
+                      <div className="mb-0.5 text-sm font-semibold text-gray-600">Câu hỏi được bỏ qua</div>
+                      <div className="text-[13px] leading-snug text-gray-400">Câu hỏi này không áp dụng với lựa chọn hiện tại.</div>
                     </div>
                   </div>
-                );
-              })}
+                )}
+
+                <div className={`text-base font-semibold leading-relaxed ${enabled ? "" : "text-gray-500"}`}>
+                  {questionOffset + questionIndex + 1}. {q.questionText}
+                  {q.isRequired && <span className="ml-1 text-red-500">*</span>}
+                </div>
+                {q.description && (
+                  <div className={`mb-4 mt-1 text-sm leading-relaxed ${enabled ? "text-gray-500" : "text-gray-400"}`}>
+                    {q.description}
+                  </div>
+                )}
+
+                <div className={!enabled ? "opacity-60" : ""}>
+                  {isAddress ? (
+                    <ProvinceWardSelect
+                      value={{
+                        provinceCode: answers[q.id]?.provinceCode ?? 48,
+                        wardCode: answers[q.id]?.wardCode != null && Number.isFinite(answers[q.id].wardCode) ? answers[q.id].wardCode : null,
+                        province: String(answers[q.id]?.province ?? ""),
+                        ward: String(answers[q.id]?.ward ?? ""),
+                      }}
+                      onChange={(next) => updateAddressAnswer(q.id, next)}
+                      disabled={!enabled}
+                    />
+                  ) : (
+                    <>
+                      {(q.questionTypeId === 1 || q.questionTypeId === 2) && q.options?.map((o: any) => (
+                        <label key={o.id} className="flex cursor-pointer items-center gap-2.5 py-2">
+                          <input
+                            type={q.questionTypeId === 1 ? "radio" : "checkbox"}
+                            name={`q-${q.id}`}
+                            className="h-[18px] w-[18px] accent-indigo-600"
+                            disabled={!enabled}
+                            checked={answers[q.id]?.optionIds?.includes(o.id) || false}
+                            onChange={() => handleOption(q.id, o.id, q.questionTypeId === 2)}
+                          />
+                          <span>{o.optionText}</span>
+                        </label>
+                      ))}
+
+                      {q.questionTypeId === 3 && (
+                        <input
+                          type="text"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] outline-none transition focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 disabled:cursor-not-allowed disabled:bg-gray-100"
+                          placeholder="Nhập câu trả lời..."
+                          disabled={!enabled}
+                          value={answers[q.id]?.answerText || ""}
+                          onChange={(e) => updateAnswer(q.id, e.target.value, "answerText")}
+                        />
+                      )}
+
+                      {q.questionTypeId === 4 && (
+                        <input
+                          type="number"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] outline-none transition focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 disabled:cursor-not-allowed disabled:bg-gray-100"
+                          placeholder="Nhập điểm..."
+                          disabled={!enabled}
+                          value={answers[q.id]?.answerNumber ?? ""}
+                          onChange={(e) => updateAnswer(q.id, e.target.value === "" ? "" : Number(e.target.value), "answerNumber")}
+                        />
+                      )}
+
+                      {q.questionTypeId === 5 && (
+                        <DatePicker
+                          id={`public-answer-date-${q.id}`}
+                          placeholder="dd/mm/yyyy"
+                          disabled={!enabled}
+                          defaultDate={answers[q.id]?.answerDate || undefined}
+                          onChange={(_, dateStr) => updateAnswer(q.id, dateStr as string, "answerDate")}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {errors[q.id] && <p className="mt-2 text-xs font-semibold text-red-500">{errors[q.id]}</p>}
+              </article>
+            );
+          })}
+
+          <div className="mb-[50px] mt-6 flex items-center justify-between gap-4">
+            <div>
+              {currentPage > 0 && (
+                <button
+                  type="button"
+                  onClick={() => goToPage(currentPage - 1)}
+                  className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-[15px] text-gray-700 transition hover:bg-gray-50"
+                >
+                  ← Quay lại
+                </button>
+              )}
             </div>
+            {currentPage < pageCount - 1 ? (
+              <button
+                type="button"
+                onClick={handleNextPage}
+                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-[15px] text-white transition hover:bg-indigo-700"
+              >
+                Tiếp tục →
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-[15px] text-white transition hover:bg-indigo-700"
+              >
+                Gửi khảo sát
+              </button>
+            )}
           </div>
-        );
-      })()}
-
-      <div className="bg-amber-50 rounded-xl border border-amber-200/50 p-6 flex flex-col items-start shadow-sm mt-8">
-        <h4 className="font-bold text-amber-800 mb-2">💡 Lưu ý quan trọng</h4>
-        <ul className="text-sm text-amber-700/80 mb-6 space-y-1 pl-4 list-disc">
-          <li>
-            Chỉ điền những trường hợp đủ điều kiện mua nhà ở xã hội theo luật
-            định.
-          </li>
-          <li>
-            Thông tin sẽ được bảo mật kỹ lượng và chỉ dùng cho mục đích khảo
-            sát.
-          </li>
-          <li>
-            Vui lòng rà soát lại thông tin trước khi nhấn Gửi Khảo Sát để tránh
-            sai lệch.
-          </li>
-        </ul>
-
-        <div className="w-full flex justify-center">
-          <button
-            onClick={handleSubmit}
-            className="w-full md:w-auto px-16 py-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-[10px] font-bold shadow-md shadow-purple-500/20 transition-all active:scale-95"
-          >
-            Gửi Khảo Sát
-          </button>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

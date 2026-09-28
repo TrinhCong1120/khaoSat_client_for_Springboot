@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FiPlus,
   FiTrash2,
@@ -23,6 +23,18 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
 
   const isAddressType = (type: number) => type === 6;
 
+  const getValidOrderIndex = (question: any, fallback: number) => {
+    const rawOrderIndex = question?.orderIndex ?? question?.OrderIndex;
+    const orderIndex =
+      typeof rawOrderIndex === "string" && rawOrderIndex.trim() === ""
+        ? NaN
+        : Number(rawOrderIndex);
+
+    return Number.isInteger(orderIndex) && orderIndex > 0
+      ? orderIndex
+      : fallback;
+  };
+
   // ======================
   // STATE UPDATE HELPER
   // ======================
@@ -42,13 +54,43 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     .map((q: any, idx: number) => ({
       q,
       idx,
-      orderIndex: Number(q?.orderIndex ?? q?.OrderIndex ?? idx + 1),
+      orderIndex: getValidOrderIndex(q, idx + 1),
     }))
     .sort(
       (a: { orderIndex: number; idx: number }, b: { orderIndex: number; idx: number }) =>
         a.orderIndex - b.orderIndex || a.idx - b.idx
     )
     .map((x: { q: any }) => x.q);
+
+  // Backend có thể trả về orderIndex rỗng. Tự chuẩn hóa ngay trên state để
+  // giao diện và mọi request lưu câu hỏi luôn có thứ tự hợp lệ.
+  useEffect(() => {
+    const orderIndexById = new Map<number, number>();
+    questionsOrdered.forEach((question: any, index: number) => {
+      orderIndexById.set(question.id, index + 1);
+    });
+
+    const needsUpdate = questionsRaw.some((question: any) => {
+      const orderIndex = orderIndexById.get(question.id);
+      return (
+        orderIndex != null &&
+        (Number(question.orderIndex) !== orderIndex ||
+          Number(question.OrderIndex) !== orderIndex)
+      );
+    });
+
+    if (!needsUpdate) return;
+
+    updateSurveyState((p: any) => ({
+      ...p,
+      questions: (p.questions || []).map((question: any) => {
+        const orderIndex = orderIndexById.get(question.id);
+        return orderIndex == null
+          ? question
+          : { ...question, orderIndex, OrderIndex: orderIndex };
+      }),
+    }));
+  }, [page?.id, page?.questions]);
 
   const normalizeOrderIndex = (ordered: any[]) => {
     const orderIndexById = new Map<number, number>();
@@ -106,7 +148,21 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ======================
   // ADD QUESTION
   // ======================
-  const addQuestion = async () => {
+  const addQuestion = async (insertAt?: number) => {
+    const currentQuestions = Array.isArray(page.questions)
+      ? page.questions
+      : [];
+    const requestedInsertAt = Number.isInteger(insertAt)
+      ? insertAt
+      : currentQuestions.length;
+    const insertIndex = Math.max(
+      0,
+      Math.min(requestedInsertAt, currentQuestions.length)
+    );
+    const nextOrderIndex = Number.isFinite(insertIndex)
+      ? insertIndex + 1
+      : 1;
+
     const res = await fetch(API_QUESTIONS, {
       method: "POST",
       headers: {
@@ -118,21 +174,37 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
         questionText: "Câu hỏi mới",
         questionTypeId: 1,
         isRequired: false,
-        orderIndex: (page.questions?.length || 0) + 1,
+        orderIndex: nextOrderIndex,
         description: "",
         options: [],
       }),
     });
 
+    if (!res.ok) {
+      const message = await res.text().catch(() => "");
+      alert(message || `Không thể thêm câu hỏi (${res.status})`);
+      return;
+    }
+
     const data = await res.json();
 
-    updateSurveyState((p: any) => ({
-      ...p,
-      questions: [
-        ...(p.questions || []),
-        { ...data, options: [], description: data.description || "" },
-      ],
-    }));
+    updateSurveyState((p: any) => {
+      const nextQuestions = [...(p.questions || [])];
+      nextQuestions.splice(insertIndex, 0, {
+        ...data,
+        options: [],
+        description: data.description || "",
+        orderIndex: insertIndex + 1,
+      });
+      return {
+        ...p,
+        questions: nextQuestions.map((question: any, index: number) => ({
+          ...question,
+          orderIndex: index + 1,
+          OrderIndex: index + 1,
+        })),
+      };
+    });
   };
 
   // ======================
@@ -140,6 +212,14 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ======================
   const saveQuestion = async (q: any) => {
     setSavingMap((prev) => ({ ...prev, [q.id]: "saving" }));
+
+    const orderIndex = getValidOrderIndex(
+      q,
+      Math.max(
+        1,
+        questionsOrdered.findIndex((question: any) => question.id === q.id) + 1
+      )
+    );
 
     const res = await fetch(`${API_QUESTIONS}/${q.id}`, {
       method: "PUT",
@@ -151,12 +231,10 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
         questionText: q.questionText,
         questionTypeId: q.questionTypeId,
         isRequired: q.isRequired,
-        orderIndex: q.orderIndex,
+        orderIndex,
         description: q.description,
         options: isChoice(q.questionTypeId)
-          ? q.options.map((o: any) => ({
-              optionText: o.optionText,
-            }))
+          ? (q.options || []).map((o: any) => o.optionText)
           : [],
       }),
     });
@@ -276,11 +354,21 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
         </button>
       </div>
 
-      {questionsOrdered.map((q: any) => (
-        <div
-          key={q.id}
-          className="border border-gray-100 dark:border-gray-800 rounded-2xl p-5 mb-6 bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-shadow"
-        >
+      {questionsOrdered.map((q: any, questionIndex: number) => (
+        <div key={q.id}>
+          {questionIndex > 0 && (
+            <div className="group flex h-8 items-center justify-center">
+              <button
+                type="button"
+                onClick={() => addQuestion(questionIndex)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-600 opacity-0 transition-opacity hover:bg-brand-500 hover:text-white focus:opacity-100 group-hover:opacity-100 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+              >
+                <FiPlus size={13} />
+                Thêm câu hỏi ở đây
+              </button>
+            </div>
+          )}
+          <div className="border border-gray-100 dark:border-gray-800 rounded-2xl p-5 mb-6 bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-shadow">
           {/* ORDER CONTROLS */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="flex items-center gap-2">
@@ -495,8 +583,21 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
               </button>
             </div>
           </div>
+          </div>
         </div>
       ))}
+
+      {/* ADD QUESTION AT THE END OF THE PAGE */}
+      <div className="flex justify-center border-t border-dashed border-gray-200 pt-5 dark:border-gray-700">
+        <button
+          type="button"
+          onClick={addQuestion}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-600 transition-all hover:bg-brand-500 hover:text-white active:scale-[0.99] dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500 dark:hover:text-white sm:w-auto"
+        >
+          <FiPlus size={18} />
+          Thêm câu hỏi cuối trang
+        </button>
+      </div>
     </div>
   );
 }

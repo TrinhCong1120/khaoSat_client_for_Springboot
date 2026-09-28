@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import FunctionTable from "@/components/functions/FunctionTable";
 import PermissionMatrixModal from "@/components/functions/PermissionMatrixModal";
 import { API_FUNCTIONS } from "@/lib/api";
+import Pagination from "@/components/ui/pagination/Pagination";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -19,6 +20,9 @@ export default function FunctionsPage() {
   const [functions, setFunctions] = useState<Func[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFunction, setSelectedFunction] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const paginatedFunctions = functions.slice((page - 1) * pageSize, page * pageSize);
 
   // ======================
   // FETCH FUNCTIONS
@@ -48,7 +52,7 @@ export default function FunctionsPage() {
   // UI
   // ======================
   return (
-    <div className="p-4 lg:p-6">
+    <div className="p-3 sm:p-4 lg:p-6">
 
       {/* HEADER */}
       <div className="mb-6">
@@ -66,10 +70,13 @@ export default function FunctionsPage() {
             Đang tải dữ liệu...
           </div>
         ) : (
-          <FunctionTable
-            functions={functions}
-            onPermission={(id: number) => setSelectedFunction(id)}
-          />
+          <>
+            <FunctionTable
+              functions={paginatedFunctions}
+              onPermission={(id: number) => setSelectedFunction(id)}
+            />
+            <Pagination page={page} pageSize={pageSize} total={functions.length} onPageChange={setPage} />
+          </>
         )}
       </div>
 

@@ -6,6 +6,7 @@ import UserFormModal from "@/components/users/UserFormModal";
 import Button from "@/components/ui/button/Button";
 import { PlusIcon } from "@/icons";
 import { API_USERS } from "@/lib/api";
+import Pagination from "@/components/ui/pagination/Pagination";
 
 // ======================
 // TYPE
@@ -34,6 +35,9 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const paginatedUsers = users.slice((page - 1) * pageSize, page * pageSize);
 
   // ======================
   // FETCH USERS
@@ -134,6 +138,7 @@ export default function UsersPage() {
 
       // 🚀 update UI nhanh hơn (không cần fetch lại)
       setUsers((prev) => prev.filter((u) => u.id !== userId));
+      setPage((current) => Math.min(current, Math.max(1, Math.ceil((users.length - 1) / pageSize))));
     } catch (err) {
       alert(
         err instanceof Error ? err.message : "Lỗi khi xóa"
@@ -153,7 +158,7 @@ export default function UsersPage() {
     <div className="p-4 lg:p-6">
 
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col items-stretch gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
             Quản lý người dùng
@@ -166,7 +171,7 @@ export default function UsersPage() {
         <Button
           onClick={handleCreate}
           size="sm"
-          className="inline-flex items-center gap-2"
+          className="inline-flex w-full items-center justify-center gap-2 sm:w-auto"
         >
           <PlusIcon className="w-5 h-5" />
           Thêm người dùng
@@ -191,10 +196,11 @@ export default function UsersPage() {
       {!loading && !error && (
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm p-4">
           <UserTable
-            users={users}
+            users={paginatedUsers}
             onEdit={handleEdit}
             onDelete={handleDelete}
           />
+          <Pagination page={page} pageSize={pageSize} total={users.length} onPageChange={setPage} />
         </div>
       )}
 

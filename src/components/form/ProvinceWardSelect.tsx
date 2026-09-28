@@ -100,7 +100,7 @@ export default function ProvinceWardSelect({
   }, []);
 
   useEffect(() => {
-    if (provinceCode == null || !Number.isFinite(provinceCode)) {
+    if (provinceCode == null || !Number.isFinite(provinceCode) || provinceCode <= 0) {
       setWards([]);
       return;
     }
@@ -142,7 +142,11 @@ export default function ProvinceWardSelect({
           options={provinceOptions}
           value={provinceCode}
           onChange={(code) => {
-            if (code == null || !Number.isFinite(code)) return;
+            if (code == null) {
+              onChange({ provinceCode: 0, wardCode: null, province: "", ward: "" });
+              return;
+            }
+            if (!Number.isFinite(code)) return;
             const selectedProvince =
               provinces.find((p) => p.code === code)?.name ?? "";
             onChange({
@@ -154,6 +158,7 @@ export default function ProvinceWardSelect({
           }}
           disabled={disabled || !!error || loadingProvinces}
           allowCodeInput={false}
+          clearable
         />
         <SearchableCodeSelect
           aria-label="Xã / Phường"
@@ -181,6 +186,7 @@ export default function ProvinceWardSelect({
           }}
           disabled={disabled || !!error || loadingWards || wardOptions.length === 0}
           allowNull
+          clearable
           nullLabel="Chưa chọn xã/phường"
           allowCodeInput={false}
         />

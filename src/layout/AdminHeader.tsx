@@ -7,7 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { FiMenu, FiX, FiMoreVertical, FiLogOut, FiUser } from "react-icons/fi";
+import { FiMenu, FiMoreVertical, FiLogOut, FiUser } from "react-icons/fi";
 
 const AdminHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
@@ -95,13 +95,11 @@ const AdminHeader: React.FC = () => {
           {/* SIDEBAR BUTTON */}
           <button
             onClick={handleToggle}
-            className="flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-gray-50 text-gray-800 dark:border-gray-800 dark:bg-gray-800 dark:text-white/90 dark:hover:bg-gray-700 transition-all"
+            type="button"
+            aria-label="Mở menu sidebar"
+            className="group flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200/80 bg-white/70 text-gray-500 transition-all hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 active:scale-95 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400 lg:-ml-5"
           >
-            {/* Show X if sidebar is visible (mobile) or wide/expanded (desktop) */}
-            {(isMobileOpen || (isExpanded && typeof window !== 'undefined' && window.innerWidth >= 1024)) 
-              ? <FiX size={20} /> 
-              : <FiMenu size={20} />
-            }
+            <FiMenu size={18} strokeWidth={2.2} />
           </button>
 
           {/* LOGO MOBILE */}

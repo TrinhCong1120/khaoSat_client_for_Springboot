@@ -17,8 +17,8 @@ const RoleTable: React.FC<RoleTableProps> = ({
 }) => {
   return (
     <div className="rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden bg-white dark:bg-gray-900 transition-all">
-      <div className="w-full overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      <div className="hidden w-full overflow-x-auto md:block">
+        <table className="w-full min-w-[460px] text-left text-sm">
           
           {/* HEADER */}
           <thead className="bg-gray-50/50 dark:bg-gray-800/50 text-[11px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">
@@ -84,6 +84,14 @@ const RoleTable: React.FC<RoleTableProps> = ({
             )}
           </tbody>
         </table>
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+        {roles.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-400">Không tìm thấy vai trò nào.</div> : roles.map((role) => (
+          <article key={role.id} className="flex items-center justify-between gap-3 p-4">
+            <div><p className="mb-1 font-mono text-xs text-gray-400">#{role.id}</p><span className="inline-flex rounded-lg border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-bold uppercase text-brand-600 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400">{role.name}</span></div>
+            <div className="flex gap-1"><button aria-label="Chỉnh sửa" onClick={() => onEdit(role)} className="rounded-xl p-2 text-gray-400 hover:bg-brand-50 hover:text-brand-500"><FiEdit3 size={18} /></button><button aria-label="Xóa vai trò" onClick={() => onDelete(role.id)} className="rounded-xl p-2 text-gray-400 hover:bg-error-50 hover:text-error-500"><FiTrash2 size={18} /></button></div>
+          </article>
+        ))}
       </div>
     </div>
   );
