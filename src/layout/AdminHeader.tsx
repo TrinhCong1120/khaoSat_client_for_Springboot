@@ -44,7 +44,7 @@ const AdminHeader: React.FC = () => {
   // SIDEBAR TOGGLE
   // ======================
   const handleToggle = () => {
-    if (window.innerWidth >= 1024) {
+    if (window.innerWidth >= 768) {
       toggleSidebar();
     } else {
       toggleMobileSidebar();
@@ -86,24 +86,24 @@ const AdminHeader: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200/50 bg-white/80 backdrop-blur-xl dark:border-gray-800/50 dark:bg-gray-900/80">
-      <div className="flex flex-col lg:flex-row items-center justify-between px-4 lg:px-6">
+    <header className="sticky top-0 z-40 w-full border-b border-gray-200/50 bg-white/80 backdrop-blur-xl dark:border-gray-800/50 dark:bg-gray-900/80">
+      <div className="flex flex-col md:flex-row items-center justify-between px-4 md:px-6">
 
         {/* ================= LEFT ================= */}
-        <div className="flex items-center justify-between w-full gap-3 py-3 lg:py-4">
+        <div className="flex items-center justify-between w-full gap-3 py-3 md:py-4">
 
           {/* SIDEBAR BUTTON */}
           <button
             onClick={handleToggle}
             type="button"
             aria-label="Mở menu sidebar"
-            className="group flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200/80 bg-white/70 text-gray-500 transition-all hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 active:scale-95 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400 lg:-ml-5"
+            className="group flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200/80 bg-white/70 text-gray-500 transition-all hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 active:scale-95 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400 md:-ml-5"
           >
             <FiMenu size={18} strokeWidth={2.2} />
           </button>
 
           {/* LOGO MOBILE */}
-          <Link href="/" className="lg:hidden">
+          <Link href="/" className="md:hidden">
             <Image
               width={140}
               height={32}
@@ -125,7 +125,7 @@ const AdminHeader: React.FC = () => {
           {/* MOBILE MENU TOGGLE */}
           <button
             onClick={toggleApplicationMenu}
-            className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 lg:hidden text-gray-500"
+            className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 md:hidden text-gray-500"
           >
             <FiMoreVertical size={20} />
           </button>
@@ -135,7 +135,7 @@ const AdminHeader: React.FC = () => {
         <div
           className={`${
             isApplicationMenuOpen ? "flex" : "hidden"
-          } lg:flex items-center gap-4 w-full lg:w-auto pb-3 lg:pb-0`}
+          } md:flex items-center gap-4 w-full md:w-auto pb-3 md:pb-0`}
         >
           {/* ACTIONS */}
           <div className="flex items-center gap-2">

@@ -1,13 +1,14 @@
 export type AnswerPayload = {
   questionId: number;
   answerText?: string | null;
-  answerNumber?: number | null;
+  answerNumber?: string | null;
   answerDate?: string | null;
   optionIds?: number[] | null;
-  provinceCode?: number | null;
-  wardCode?: number | null;
+  provinceCode?: string | null;
+  wardCode?: string | null;
   province?: string | null;
   ward?: string | null;
+  addressDetail?: string | null;
 };
 
 export function getQuestionTypeCode(q: { questionTypeCode?: string | null }) {
@@ -39,21 +40,16 @@ export function buildPublicSurveySubmitAnswers(
     if (typeCode === "ADDRESS" || typeId === 6) {
       const province = String(raw.province ?? "").trim();
       const ward = String(raw.ward ?? "").trim();
-      const provinceCode = Number(raw.provinceCode);
-      const wardCode = Number(raw.wardCode);
       const provinceOk = province.length > 0;
       const wardOk = ward.length > 0;
-      const provinceCodeOk = Number.isFinite(provinceCode) && provinceCode > 0;
-      const wardCodeOk = Number.isFinite(wardCode) && wardCode > 0;
 
       if (!provinceOk || !wardOk) continue;
 
       out.push({
         questionId: raw.questionId,
-        provinceCode: provinceCodeOk ? provinceCode : null,
-        wardCode: wardCodeOk ? wardCode : null,
         province,
         ward,
+        addressDetail: String(raw.addressDetail ?? "").trim() || null,
       });
       continue;
     }
@@ -79,8 +75,8 @@ export function buildPublicSurveySubmitAnswers(
     }
 
     if (typeCode === "NUMBER" || typeId === 4) {
-      const answerNumber = Number(raw.answerNumber);
-      if (!Number.isFinite(answerNumber)) continue;
+      const answerNumber = String(raw.answerNumber ?? "").trim();
+      if (!answerNumber || !/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(answerNumber)) continue;
       out.push({ questionId: raw.questionId, answerNumber });
       continue;
     }

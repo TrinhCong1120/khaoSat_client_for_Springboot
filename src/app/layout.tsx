@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { SidebarProvider } from "@/context/SidebarContext";
-import ChatWidget from "@/components/chat/ChatWidget";
+import { Agentation } from "agentation";
 
 
 export const metadata: Metadata = {
@@ -21,11 +21,16 @@ export default function RootLayout({
       lang="en"
       className="antialiased"
     >
-      <body className="min-h-full flex flex-col">
+      <body
+        className="min-h-full flex flex-col"
+        suppressHydrationWarning
+      >
           <ThemeProvider>
             <SidebarProvider>
               {children}
-              <ChatWidget />
+              {process.env.NODE_ENV === "development" && (
+                <Agentation endpoint="http://localhost:4747" />
+              )}
             </SidebarProvider>
           </ThemeProvider>
         </body>

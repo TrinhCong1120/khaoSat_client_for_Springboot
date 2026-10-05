@@ -13,6 +13,11 @@ export const API_FUNCTIONS = endpoint("NEXT_PUBLIC_API_FUNCTIONS", "/api/Functio
 export const API_SURVEYS = endpoint("NEXT_PUBLIC_API_SURVEYS", "/api/Surveys");
 export const API_PAGES = endpoint("NEXT_PUBLIC_API_PAGES", "/api/Pages");
 export const API_QUESTIONS = endpoint("NEXT_PUBLIC_API_QUESTIONS", "/api/Questions");
+export const API_MEDIA = endpoint("NEXT_PUBLIC_API_MEDIA", "/api/Media");
+export const API_VALIDATION_RULE_CATALOG = endpoint(
+  "NEXT_PUBLIC_API_VALIDATION_RULE_CATALOG",
+  "/api/ValidationRules/catalog"
+);
 export const API_CONDITIONS = endpoint("NEXT_PUBLIC_API_CONDITIONS", "/api/Conditions");
 export const API_PUBLIC_SURVEYS = endpoint(
   "NEXT_PUBLIC_API_PUBLIC_SURVEYS",

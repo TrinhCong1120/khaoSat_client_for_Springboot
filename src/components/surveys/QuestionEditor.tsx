@@ -11,6 +11,8 @@ import {
   FiChevronDown,
 } from "react-icons/fi";
 import { API_QUESTIONS } from "@/lib/api";
+import ValidationRulesEditor from "@/components/surveys/ValidationRulesEditor";
+import MediaUploader from "@/components/surveys/MediaUploader";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -111,6 +113,20 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
         };
       }),
     }));
+
+    return ordered.map((q: any, idx: number) => ({
+      ...q,
+      orderIndex: idx + 1,
+      OrderIndex: idx + 1,
+    }));
+  };
+
+  const persistQuestionOrder = async (ordered: any[]) => {
+    await Promise.all(
+      ordered.map((q: any, index: number) =>
+        saveQuestion({ ...q, orderIndex: index + 1, OrderIndex: index + 1 }, index + 1)
+      )
+    );
   };
 
   // ======================
@@ -126,7 +142,8 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     const nextOrdered = [...questionsOrdered];
     const [item] = nextOrdered.splice(fromIndex, 1);
     nextOrdered.splice(toIndex, 0, item);
-    normalizeOrderIndex(nextOrdered);
+    const normalized = normalizeOrderIndex(nextOrdered);
+    void persistQuestionOrder(normalized);
   };
 
   const setQuestionOrder = (qid: number, nextOrderIndex: number) => {
@@ -142,18 +159,19 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     const nextOrdered = [...questionsOrdered];
     const [item] = nextOrdered.splice(fromIndex, 1);
     nextOrdered.splice(toIndex, 0, item);
-    normalizeOrderIndex(nextOrdered);
+    const normalized = normalizeOrderIndex(nextOrdered);
+    void persistQuestionOrder(normalized);
   };
 
   // ======================
   // ADD QUESTION
   // ======================
   const addQuestion = async (insertAt?: number) => {
-    const currentQuestions = Array.isArray(page.questions)
-      ? page.questions
+    const currentQuestions = Array.isArray(questionsOrdered)
+      ? questionsOrdered
       : [];
     const requestedInsertAt = Number.isInteger(insertAt)
-      ? insertAt
+      ? Number(insertAt)
       : currentQuestions.length;
     const insertIndex = Math.max(
       0,
@@ -188,32 +206,35 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
 
     const data = await res.json();
 
+    const nextQuestions = [...currentQuestions];
+    nextQuestions.splice(insertIndex, 0, {
+      ...data,
+      options: [],
+      description: data.description || "",
+      orderIndex: insertIndex + 1,
+    });
+    const normalizedQuestions = nextQuestions.map((question: any, index: number) => ({
+      ...question,
+      orderIndex: index + 1,
+      OrderIndex: index + 1,
+    }));
+
     updateSurveyState((p: any) => {
-      const nextQuestions = [...(p.questions || [])];
-      nextQuestions.splice(insertIndex, 0, {
-        ...data,
-        options: [],
-        description: data.description || "",
-        orderIndex: insertIndex + 1,
-      });
       return {
         ...p,
-        questions: nextQuestions.map((question: any, index: number) => ({
-          ...question,
-          orderIndex: index + 1,
-          OrderIndex: index + 1,
-        })),
+        questions: normalizedQuestions,
       };
     });
+    void persistQuestionOrder(normalizedQuestions);
   };
 
   // ======================
   // SAVE QUESTION
   // ======================
-  const saveQuestion = async (q: any) => {
+  const saveQuestion = async (q: any, orderIndexOverride?: number) => {
     setSavingMap((prev) => ({ ...prev, [q.id]: "saving" }));
 
-    const orderIndex = getValidOrderIndex(
+    const orderIndex = orderIndexOverride ?? getValidOrderIndex(
       q,
       Math.max(
         1,
@@ -233,8 +254,17 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
         isRequired: q.isRequired,
         orderIndex,
         description: q.description,
+        imageUrl: q.imageUrl ?? null,
+        videoUrl: q.videoUrl ?? null,
+        audioUrl: q.audioUrl ?? null,
         options: isChoice(q.questionTypeId)
-          ? (q.options || []).map((o: any) => o.optionText)
+          ? (q.options || []).map((o: any) => ({
+              ...(o.id && Number(o.id) < 1000000000000 ? { id: o.id } : {}),
+              optionText: o.optionText,
+              imageUrl: o.imageUrl ?? null,
+              videoUrl: o.videoUrl ?? null,
+              audioUrl: o.audioUrl ?? null,
+            }))
           : [],
       }),
     });
@@ -253,10 +283,6 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     }, 2000);
   };
 
-  const saveQuestionsOrder = async () => {
-    // Lưu toàn bộ câu hỏi để đảm bảo `orderIndex` được backend cập nhật đồng bộ
-    await Promise.all(questionsOrdered.map((q: any) => saveQuestion(q)));
-  };
 
   // ======================
   // DELETE
@@ -271,10 +297,15 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
       },
     });
 
+    const remainingQuestions = questionsOrdered
+      .filter((q: any) => q.id !== qid)
+      .map((q: any, index: number) => ({ ...q, orderIndex: index + 1, OrderIndex: index + 1 }));
+
     updateSurveyState((p: any) => ({
       ...p,
-      questions: p.questions.filter((q: any) => q.id !== qid),
+      questions: remainingQuestions,
     }));
+    void persistQuestionOrder(remainingQuestions);
   };
 
   // ======================
@@ -328,34 +359,34 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     }));
   };
 
+  const deleteOption = (qid: number, oid: number) => {
+    updateSurveyState((p: any) => ({
+      ...p,
+      questions: p.questions.map((q: any) => q.id !== qid ? q : ({
+        ...q,
+        options: (q.options || []).filter((o: any) => o.id !== oid),
+      })),
+    }));
+  };
+
+  const updateOptionMedia = (qid: number, oid: number, field: string, value: string) => {
+    updateSurveyState((p: any) => ({
+      ...p,
+      questions: p.questions.map((q: any) => q.id !== qid ? q : ({
+        ...q,
+        options: (q.options || []).map((o: any) => o.id === oid ? { ...o, [field]: value } : o),
+      })),
+    }));
+  };
+
   // ======================
   // UI
   // ======================
   return (
     <div>
-      {/* ADD QUESTION */}
-      <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-        <button
-          onClick={addQuestion}
-          className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-brand-500/20 text-sm font-semibold transition-all active:scale-95"
-        >
-          <FiPlus size={18} />
-          Thêm câu hỏi
-        </button>
-
-        <button
-          onClick={saveQuestionsOrder}
-          className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-brand-500/50 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={questionsOrdered.length <= 0}
-          title="Lưu thứ tự các câu hỏi"
-        >
-          <FiSave size={18} />
-          Lưu thứ tự
-        </button>
-      </div>
 
       {questionsOrdered.map((q: any, questionIndex: number) => (
-        <div key={q.id}>
+        <div key={q.id} id={`survey-question-${q.id}`} className="scroll-mt-24">
           {questionIndex > 0 && (
             <div className="group flex h-8 items-center justify-center">
               <button
@@ -514,7 +545,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
             <div className="mb-6 space-y-3 pl-4 border-l-2 border-gray-100 dark:border-gray-800">
               {(q.options || []).map((o: any) => (
                 <div key={o.id} className="flex items-center gap-3">
-                  <div className="text-gray-400 shrink-0">
+                  <div className="shrink-0 text-gray-400">
                     {q.questionTypeId === 1 ? (
                       <FiCircle size={16} />
                     ) : (
@@ -522,14 +553,36 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                     )}
                   </div>
 
-                  <input
-                    className="flex-1 px-3 py-1.5 bg-transparent border-b border-gray-200 dark:border-gray-700 text-sm text-gray-800 dark:text-white/90 focus:border-brand-500 outline-none transition-all"
-                    value={o.optionText}
-                    onChange={(e) =>
-                      updateOption(q.id, o.id, e.target.value)
-                    }
-                    placeholder="Tên lựa chọn"
-                  />
+                  <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
+                    <input
+                      className="min-w-0 w-full px-3 py-1.5 bg-transparent border-b border-gray-200 dark:border-gray-700 text-sm text-gray-800 dark:text-white/90 focus:border-brand-500 outline-none transition-all"
+                      value={o.optionText}
+                      onChange={(e) =>
+                        updateOption(q.id, o.id, e.target.value)
+                      }
+                      placeholder="Tên lựa chọn"
+                    />
+                    {Number.isSafeInteger(Number(o.id)) && Number(o.id) > 0 && Number(o.id) < 1000000000000 ? (
+                      <MediaUploader
+                        compact
+                        ownerType="OPTION"
+                        ownerId={Number(o.id)}
+                        values={o}
+                        onChange={(field, value) => updateOptionMedia(q.id, o.id, field, value)}
+                      />
+                    ) : (
+                      <p className="text-right text-[11px] text-gray-400">Lưu câu hỏi trước khi tải media.</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteOption(q.id, o.id)}
+                      title="Xóa lựa chọn"
+                      aria-label="Xóa lựa chọn"
+                      className="col-start-3 row-start-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-400 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-500/10"
+                    >
+                      <FiTrash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               ))}
 
@@ -542,6 +595,24 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
               </button>
             </div>
           )}
+
+          <div className="mb-5">
+            <MediaUploader
+              ownerType="QUESTION"
+              ownerId={Number(q.id)}
+              values={q}
+              onChange={(field, value) => updateQuestion(q.id, field, value)}
+            />
+          </div>
+
+          <ValidationRulesEditor
+            questionId={q.id}
+            questionTypeId={Number(q.questionTypeId)}
+            questionTypeCode={q.questionTypeCode ?? q.questionType?.code ?? ({ 1: "SINGLE_CHOICE", 2: "MULTIPLE_CHOICE", 3: "TEXT", 4: "NUMBER", 5: "DATE", 6: "ADDRESS" } as Record<number, string>)[Number(q.questionTypeId)]}
+            revision={survey?.validationRevision ?? survey?.revision}
+            rules={q.validationRules}
+            onChange={(validationRules) => updateQuestion(q.id, "validationRules", validationRules)}
+          />
 
           {/* FOOTER ACTIONS */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
@@ -591,7 +662,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
       <div className="flex justify-center border-t border-dashed border-gray-200 pt-5 dark:border-gray-700">
         <button
           type="button"
-          onClick={addQuestion}
+          onClick={() => void addQuestion()}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-600 transition-all hover:bg-brand-500 hover:text-white active:scale-[0.99] dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500 dark:hover:text-white sm:w-auto"
         >
           <FiPlus size={18} />

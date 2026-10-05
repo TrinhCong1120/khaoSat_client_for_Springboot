@@ -228,7 +228,7 @@ const AdminSidebar: React.FC = () => {
                 openSubmenu?.index === index
                   ? "menu-item-active"
                   : "menu-item-inactive"
-              } ${!expanded ? "lg:justify-center" : "lg:justify-start"}`}
+              } ${!expanded ? "md:justify-center" : "md:justify-start"}`}
             >
               <span
                 className={
@@ -262,7 +262,7 @@ const AdminSidebar: React.FC = () => {
                   isActive(nav.path)
                     ? "menu-item-active"
                     : "menu-item-inactive"
-                } ${!expanded ? "lg:justify-center" : ""}`}
+                } ${!expanded ? "md:justify-center" : ""}`}
               >
                 <span
                   className={
@@ -324,20 +324,20 @@ const AdminSidebar: React.FC = () => {
   // ======================
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-4 left-0 
-        bg-white dark:bg-gray-900 dark:border-gray-800 
-        h-screen transition-all duration-300 z-50 border-r border-gray-100/50 
+      className={`fixed z-50 mt-16 flex flex-col md:mt-0 top-0 px-3 left-0
+        bg-white dark:bg-gray-900 dark:border-gray-800
+        h-screen transition-all duration-300 z-50 md:z-50 border-r border-gray-100/50
         scrollbar-none
-        ${expanded ? "w-[290px]" : "w-[90px]"}
+        ${expanded ? "w-[264px]" : "w-[68px]"}
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-        lg:translate-x-0`}
+        md:translate-x-0`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* LOGO SECTION */}
       <div
         className={`py-10 flex ${
-          !expanded ? "lg:justify-center" : "justify-start px-2"
+          !expanded ? "md:justify-center" : "justify-start px-2"
         }`}
       >
         <Link href="/admin">

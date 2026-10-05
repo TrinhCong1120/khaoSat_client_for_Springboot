@@ -47,15 +47,14 @@ export default function AdminLayout({
 
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
-  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const { isExpanded, isMobileOpen } = useSidebar();
   const router = useRouter();
-  const expanded = isExpanded || isHovered;
 
   const mainContentMargin = isMobileOpen
     ? "ml-0"
-    : expanded
-    ? "lg:ml-[290px]"
-    : "lg:ml-[90px]";
+    : isExpanded
+    ? "md:ml-[264px]"
+    : "md:ml-[68px]";
 
   return (
     <div className="min-h-screen xl:flex bg-gray-50 dark:bg-gray-900">

@@ -37,6 +37,11 @@ export default function SurveyTable({
 }: Props) {
   const [linkSurvey, setLinkSurvey] = React.useState<Survey | null>(null);
   const [copiedLink, setCopiedLink] = React.useState<string | null>(null);
+  const [origin, setOrigin] = React.useState("");
+
+  React.useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   const copyLink = async (link: string) => {
     try {
@@ -221,7 +226,21 @@ export default function SurveyTable({
               </button>
             </div>
 
-            <div className="mt-6 grid gap-3">
+            <div className="mt-6 space-y-5">
+              <div className="flex flex-col items-center rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/50">
+                <p className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Mã QR link FE</p>
+                <div className="rounded-xl bg-white p-2 shadow-sm">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(origin ? `${origin}/survey/${linkSurvey.id}` : `/survey/${linkSurvey.id}`)}`}
+                    alt={`Mã QR mở khảo sát ${linkSurvey.title}`}
+                    width={220}
+                    height={220}
+                  />
+                </div>
+                <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">Quét mã để mở trang khảo sát</p>
+              </div>
+
+              <div className="grid gap-3">
               {[
                 {
                   label: "Xem API Public",
@@ -231,7 +250,7 @@ export default function SurveyTable({
                 },
                 {
                   label: "Xem trang khảo sát",
-                  link: `/survey/${linkSurvey.id}`,
+                  link: origin ? `${origin}/survey/${linkSurvey.id}` : `/survey/${linkSurvey.id}`,
                   className:
                     "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700",
                 },
@@ -242,9 +261,10 @@ export default function SurveyTable({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setLinkSurvey(null)}
-                    className={`flex-1 rounded-xl border px-4 py-3 text-center text-sm font-semibold transition ${item.className}`}
+                    className={`min-w-0 flex-1 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${item.className}`}
                   >
-                    {item.label}
+                    <span className="block">{item.label}</span>
+                    <span className="mt-1 block break-all text-xs font-normal opacity-80">{item.link}</span>
                   </a>
                   <button
                     type="button"
@@ -256,6 +276,7 @@ export default function SurveyTable({
                   </button>
                 </div>
               ))}
+              </div>
             </div>
           </div>
         </div>
