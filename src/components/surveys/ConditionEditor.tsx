@@ -176,12 +176,12 @@ export default function ConditionEditor({
         (form.sourceAddressProvinceTokens?.length || 0) +
         (form.sourceAddressWardTokens?.length || 0);
       if (addressTokensCount <= 0) {
-        alert("Vui lòng chọn ít nhất 1 tỉnh/thành hoặc xã/phường cho điều kiện ADDRESS");
+        alert("Vui lòng chọn ít nhất một tỉnh/thành hoặc xã/phường cho điều kiện địa chỉ");
         return;
       }
     } else {
       if (!isSourceChoiceQuestion) {
-        alert("Câu nguồn phải là câu hỏi có options (single/multiple choice) hoặc ADDRESS");
+        alert("Câu hỏi nguồn phải là câu hỏi một lựa chọn, nhiều lựa chọn hoặc địa chỉ");
         return;
       }
       if (!form.sourceValueIds.length) {
@@ -428,7 +428,7 @@ export default function ConditionEditor({
               isSourceAddressQuestion ? (
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs text-gray-500 mb-1.5">Tỉnh/Thành (ADDRESS)</p>
+                    <p className="text-xs text-gray-500 mb-1.5">Tỉnh/Thành</p>
                     <SearchableCodeSelect
                       className="[&_input]:rounded-xl"
                       aria-label="Thêm tỉnh/thành cho điều kiện"
@@ -454,7 +454,7 @@ export default function ConditionEditor({
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1.5">Xã/Phường (ADDRESS)</p>
+                    <p className="text-xs text-gray-500 mb-1.5">Xã/Phường</p>
                     <SearchableCodeSelect
                       className="[&_input]:rounded-xl"
                       aria-label="Thêm xã/phường cho điều kiện"
@@ -486,7 +486,7 @@ export default function ConditionEditor({
                   </div>
                   <div className="pt-1">
                     <p className="text-[11px] text-gray-500">
-                      SourceValue sẽ gửi dạng text tách dấu phẩy: ví dụ Hà Nội,Ba Đình.
+                      Giá trị điều kiện được gửi dưới dạng văn bản, phân tách bằng dấu phẩy; ví dụ: Hà Nội, Ba Đình.
                     </p>
                   </div>
                 </div>
@@ -512,7 +512,7 @@ export default function ConditionEditor({
                 </div>
               ) : (
                 <div className="w-full px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl text-sm text-amber-700 dark:text-amber-300">
-                  Câu nguồn này không có options và cũng không phải ADDRESS nên chưa hỗ trợ SourceValue.
+                  Câu hỏi nguồn này không có lựa chọn và cũng không phải loại địa chỉ nên chưa hỗ trợ giá trị điều kiện.
                 </div>
               )
             ) : (

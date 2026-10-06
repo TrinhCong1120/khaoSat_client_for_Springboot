@@ -14,6 +14,15 @@ import { API_QUESTIONS } from "@/lib/api";
 import ValidationRulesEditor from "@/components/surveys/ValidationRulesEditor";
 import MediaUploader from "@/components/surveys/MediaUploader";
 
+const QUESTION_TYPE_CODES: Record<number, string> = {
+  1: "SINGLE_CHOICE",
+  2: "MULTIPLE_CHOICE",
+  3: "TEXT",
+  4: "NUMBER",
+  5: "DATE",
+  6: "ADDRESS",
+};
+
 const getToken = () =>
   localStorage.getItem("token") ||
   sessionStorage.getItem("token");
@@ -475,6 +484,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                 value={q.questionTypeId}
                 onChange={(e) => {
                   const val = Number(e.target.value);
+                  const questionTypeCode = QUESTION_TYPE_CODES[val];
 
                   updateSurveyState((p: any) => ({
                     ...p,
@@ -484,6 +494,12 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                       return {
                         ...x,
                         questionTypeId: val,
+                        questionTypeCode,
+                        questionType: x.questionType
+                          ? { ...x.questionType, id: val, code: questionTypeCode }
+                          : x.questionType,
+                        // Rule cũ thuộc loại câu hỏi trước nên không còn hợp lệ.
+                        validationRules: [],
                         options: isChoice(val)
                           ? x.options?.length
                             ? x.options
@@ -497,12 +513,12 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                   }));
                 }}
               >
-                <option value={1}>Một lựa chọn (Radio)</option>
-                <option value={2}>Nhiều lựa chọn (Checkbox)</option>
-                <option value={3}>Trả lời ngắn (Text)</option>
-                <option value={4}>Số học (Number)</option>
-                <option value={5}>Ngày tháng (Date)</option>
-                <option value={6}>Địa chỉ — Tỉnh/Thành, Xã/Phường (ADDRESS)</option>
+                <option value={1}>Một lựa chọn</option>
+                <option value={2}>Nhiều lựa chọn</option>
+                <option value={3}>Trả lời ngắn</option>
+                <option value={4}>Số</option>
+                <option value={5}>Ngày tháng</option>
+                <option value={6}>Địa chỉ — Tỉnh/thành, Xã/phường</option>
               </select>
             </div>
 
@@ -571,7 +587,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                         onChange={(field, value) => updateOptionMedia(q.id, o.id, field, value)}
                       />
                     ) : (
-                      <p className="text-right text-[11px] text-gray-400">Lưu câu hỏi trước khi tải media.</p>
+                      <p className="text-right text-[11px] text-gray-400">Lưu câu hỏi trước khi tải tệp đa phương tiện.</p>
                     )}
                     <button
                       type="button"
@@ -608,7 +624,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
           <ValidationRulesEditor
             questionId={q.id}
             questionTypeId={Number(q.questionTypeId)}
-            questionTypeCode={q.questionTypeCode ?? q.questionType?.code ?? ({ 1: "SINGLE_CHOICE", 2: "MULTIPLE_CHOICE", 3: "TEXT", 4: "NUMBER", 5: "DATE", 6: "ADDRESS" } as Record<number, string>)[Number(q.questionTypeId)]}
+            questionTypeCode={QUESTION_TYPE_CODES[Number(q.questionTypeId)]}
             revision={survey?.validationRevision ?? survey?.revision}
             rules={q.validationRules}
             onChange={(validationRules) => updateQuestion(q.id, "validationRules", validationRules)}

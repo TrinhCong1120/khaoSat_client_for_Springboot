@@ -36,10 +36,10 @@ const RULES: Record<number, RuleDefinition[]> = {
   3: [
     { type: "MIN_LENGTH", label: "Độ dài tối thiểu", valueKind: "number" },
     { type: "MAX_LENGTH", label: "Độ dài tối đa", valueKind: "number" },
-    { type: "REGEX", label: "Regex", valueKind: "text", placeholder: "Ví dụ: ^SV[0-9]{6}$" },
-    { type: "EMAIL", label: "Email", valueKind: "boolean" },
-    { type: "PHONE", label: "Số điện thoại / Regex", valueKind: "text" },
-    { type: "URL", label: "URL", valueKind: "boolean" },
+    { type: "REGEX", label: "Biểu thức chính quy", valueKind: "text", placeholder: "Ví dụ: ^SV[0-9]{6}$" },
+    { type: "EMAIL", label: "Địa chỉ email", valueKind: "boolean" },
+    { type: "PHONE", label: "Số điện thoại / Biểu thức chính quy", valueKind: "text" },
+    { type: "URL", label: "Địa chỉ web (URL)", valueKind: "boolean" },
     { type: "NUMERIC_TEXT", label: "Chỉ chữ số", valueKind: "boolean" },
     { type: "ALPHABET_ONLY", label: "Chỉ chữ cái", valueKind: "boolean" },
     { type: "ALPHANUMERIC", label: "Chữ và số", valueKind: "boolean" },
@@ -83,12 +83,16 @@ const RULES: Record<number, RuleDefinition[]> = {
     { type: "DISALLOWED_WARDS", label: "Xã/phường bị cấm", valueKind: "list" },
     { type: "DETAIL_MIN_LENGTH", label: "Độ dài địa chỉ tối thiểu", valueKind: "number" },
     { type: "DETAIL_MAX_LENGTH", label: "Độ dài địa chỉ tối đa", valueKind: "number" },
-    { type: "DETAIL_REGEX", label: "Regex địa chỉ chi tiết", valueKind: "text" },
+    { type: "DETAIL_REGEX", label: "Biểu thức chính quy cho địa chỉ chi tiết", valueKind: "text" },
   ],
 };
 
 function definitionFor(typeId: number, type: string) {
   return RULES[typeId]?.find((rule) => rule.type === type);
+}
+
+function localizedDefinitionFor(type: string) {
+  return Object.values(RULES).flat().find((rule) => rule.type === type);
 }
 
 function displayValue(rule: ValidationRule, definition?: RuleDefinition) {
@@ -135,7 +139,7 @@ function buildValue(definition: RuleDefinition, raw: string | boolean) {
   return raw;
 }
 
-function catalogDefinition(rule: any): RuleDefinition {
+function catalogDefinition(rule: any, questionTypeId: number): RuleDefinition {
   const parameter = Array.isArray(rule?.parameters) ? rule.parameters[0] : null;
   const code = String(rule?.code || "");
   const parameterType = String(parameter?.type || "TEXT").toUpperCase();
@@ -144,7 +148,14 @@ function catalogDefinition(rule: any): RuleDefinition {
   else if (parameterType.includes("NUMBER")) valueKind = "number";
   else if (parameterType.includes("LIST") || parameter?.multiple === true) valueKind = "list";
   if (/OPTIONS|VALUES|WEEKDAYS|DATES|PROVINCES|WARDS|MUST_CONTAIN|NOT_CONTAIN/.test(code)) valueKind = "list";
-  return { type: code, label: String(rule.name || code), valueKind, placeholder: parameter?.description || parameter?.name || "Giá trị", parameters: Array.isArray(rule.parameters) ? rule.parameters : [] };
+  const localizedDefinition = definitionFor(questionTypeId, code) || localizedDefinitionFor(code);
+  return {
+    type: code,
+    label: localizedDefinition?.label || String(rule.name || code),
+    valueKind,
+    placeholder: localizedDefinition?.placeholder || parameter?.description || parameter?.name || "Giá trị",
+    parameters: Array.isArray(rule.parameters) ? rule.parameters : [],
+  };
 }
 
 function toParameters(rule: ValidationRule, definition?: RuleDefinition) {
@@ -228,10 +239,16 @@ export default function ValidationRulesEditor({ questionId, questionTypeId, ques
 
   useEffect(() => {
     const code = String(questionTypeCode || "").toUpperCase();
+    setCatalog([]);
+    setCatalogError("");
+    setSaveState("idle");
+    setSaveError("");
     if (!code) return;
+    const controller = new AbortController();
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
     fetch(`${API_VALIDATION_RULE_CATALOG}?questionType=${encodeURIComponent(code)}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      signal: controller.signal,
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("catalog");
@@ -240,12 +257,16 @@ export default function ValidationRulesEditor({ questionId, questionTypeId, ques
       .then((body) => {
         const next = (Array.isArray(body) ? body : body?.rules || [])
           .filter((rule: any) => rule?.code)
-          .map(catalogDefinition);
+          .map((rule: any) => catalogDefinition(rule, questionTypeId));
         setCatalog(next);
         setCatalogError("");
       })
-      .catch(() => setCatalogError("Không tải được danh sách điều kiện từ Backend"));
-  }, [questionTypeCode]);
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setCatalogError("Không tải được danh sách điều kiện từ máy chủ");
+      });
+    return () => controller.abort();
+  }, [questionTypeCode, questionTypeId]);
 
   useEffect(() => {
     if (!questionId) return;
@@ -327,7 +348,7 @@ export default function ValidationRulesEditor({ questionId, questionTypeId, ques
       }
       setSaveState("saved");
     } catch {
-      setSaveError("Không kết nối được Backend");
+      setSaveError("Không kết nối được máy chủ");
       setSaveState("error");
     }
   };

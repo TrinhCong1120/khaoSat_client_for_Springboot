@@ -101,7 +101,7 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error(`Không xóa được media (${response.status}).`);
+      if (!response.ok) throw new Error(`Không xóa được tệp đa phương tiện (${response.status}).`);
       setRemovedMediaIds((current) => [...current, Number(media.id)]);
       if (values?.[mediaField(media.mediaType)] === media.objectUrl) {
         const replacement = visibleMedia.find((item: any) =>
@@ -110,7 +110,7 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
         onChange(mediaField(media.mediaType), replacement?.objectUrl || "");
       }
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Không xóa được media.");
+      setError(deleteError instanceof Error ? deleteError.message : "Không xóa được tệp đa phương tiện.");
     }
   };
 
@@ -139,12 +139,12 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={busy}
-          title="Thêm media"
-          aria-label="Thêm media"
+          title="Thêm tệp đa phương tiện"
+          aria-label="Thêm tệp đa phương tiện"
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-brand-100 bg-brand-50 text-brand-600 transition hover:border-brand-300 hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"
         >
           <AddMediaIcon compact />
-          <span className="sr-only">{busy ? "Đang tải" : "Thêm media"}</span>
+          <span className="sr-only">{busy ? "Đang tải" : "Thêm tệp đa phương tiện"}</span>
         </button>
         <input ref={inputRef} type="file" accept={ACCEPT} className="sr-only" disabled={busy} onChange={(event) => void chooseFile(event.target.files?.[0])} />
         {error && <p role="alert" className="col-span-full flex items-center justify-end gap-1 text-[11px] text-red-600 dark:text-red-400"><FiX size={12} />{error}</p>}
@@ -155,12 +155,12 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
   return (
     <div className={`${ownerType === "OPTION" ? "col-span-full mt-2" : ""} w-full min-w-0`}>
         <div className={`${compactLayout ? "flex-wrap rounded-lg border border-gray-100 bg-gray-50/60 p-2.5 dark:border-gray-800 dark:bg-gray-950/40" : ""} flex min-w-0 items-center gap-2.5`}>
-          <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} title="Thêm media" aria-label="Thêm media" className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-500 transition hover:border-brand-400 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800">
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} title="Thêm tệp đa phương tiện" aria-label="Thêm tệp đa phương tiện" className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-500 transition hover:border-brand-400 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800">
             {activeUrl && activeType === "IMAGE" ? <img src={activeUrl} alt="Ảnh minh họa" className="h-full w-full object-cover" /> : <TypeIcon size={18} />}
             <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><FiUpload size={15} /></span>
           </button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium text-gray-700 dark:text-gray-200">{busy ? "Đang tải lên…" : hasAnyMedia ? "Đã có media" : "Chưa có media"}</p>
+            <p className="truncate text-xs font-medium text-gray-700 dark:text-gray-200">{busy ? "Đang tải lên…" : hasAnyMedia ? "Đã có tệp đa phương tiện" : "Chưa có tệp đa phương tiện"}</p>
             <p className="mt-0.5 truncate text-[11px] text-gray-400">{error || (activeType === "VIDEO" ? "Video" : activeType === "AUDIO" ? "Âm thanh" : hasAnyMedia ? `${imageUrls.length} ảnh` : "Ảnh, video hoặc âm thanh")}</p>
           </div>
           {activeUrl && activeType !== "IMAGE" && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-500 dark:bg-gray-800"><TypeIcon size={15} /></span>}
@@ -169,15 +169,15 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
               type="button"
               onClick={() => activeMedia?.id ? void deleteMedia(activeMedia) : clearMediaUrl(activeType)}
               disabled={busy}
-              title="Xoa media"
-              aria-label="Xoa media"
+              title="Xóa tệp đa phương tiện"
+              aria-label="Xóa tệp đa phương tiện"
               className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-red-500 transition hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-500/10"
             >
               <FiTrash2 size={15} />
             </button>
           )}
           <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className={`${compactLayout ? "ml-14 sm:ml-0" : ""} inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 disabled:opacity-50 dark:text-brand-400 dark:hover:bg-brand-500/10`}>
-            <AddMediaIcon compact /> {busy ? "Đang tải" : "Thêm media"}
+            <AddMediaIcon compact /> {busy ? "Đang tải" : "Thêm tệp đa phương tiện"}
           </button>
         </div>
 
