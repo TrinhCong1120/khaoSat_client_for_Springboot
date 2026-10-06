@@ -19,6 +19,8 @@ interface InputProps {
   disabled?: boolean;
   required?: boolean;
   autoFocus?: boolean;
+  autoComplete?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   success?: boolean;
   error?: boolean;
   hint?: string;
@@ -39,20 +41,22 @@ const Input: FC<InputProps> = ({
   disabled = false,
   required = false,
   autoFocus = false,
+  autoComplete,
+  inputMode,
   success = false,
   error = false,
   hint,
 }) => {
-  let inputClasses = `h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-none focus:ring-2 ${className}`;
+  let inputClasses = `min-h-11 w-full min-w-0 rounded-lg border bg-white px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 dark:bg-gray-900 ${className}`;
 
   if (disabled) {
-    inputClasses += ` text-gray-500 border-gray-300 cursor-not-allowed`;
+    inputClasses += ` cursor-not-allowed border-gray-300 bg-gray-100 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400`;
   } else if (error) {
-    inputClasses += ` text-red-500 border-red-500`;
+    inputClasses += ` border-error-500 text-error-700 dark:text-error-300`;
   } else if (success) {
-    inputClasses += ` text-green-500 border-green-500`;
+    inputClasses += ` border-success-500 text-success-700 dark:text-success-300`;
   } else {
-    inputClasses += ` text-gray-800 dark:text-white/90 border-gray-300 dark:border-gray-700 focus:border-brand-400 dark:bg-gray-800/50 dark:placeholder:text-gray-500 transition-all shadow-sm focus:ring-brand-500/20`;
+    inputClasses += ` border-gray-300 text-gray-800 transition-[border-color,box-shadow] focus-visible:border-brand-500 focus-visible:ring-brand-500/20 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-gray-500`;
   }
 
   return (
@@ -62,7 +66,7 @@ const Input: FC<InputProps> = ({
         id={id}
         name={name}
         placeholder={placeholder}
-        value={value ?? ""}
+        {...(value !== undefined ? { value } : { defaultValue })}
         onChange={onChange}
         min={min}
         max={max}
@@ -70,6 +74,8 @@ const Input: FC<InputProps> = ({
         disabled={disabled}
         required={required}
         autoFocus={autoFocus}
+        autoComplete={autoComplete}
+        inputMode={inputMode}
         className={inputClasses}
       />
 

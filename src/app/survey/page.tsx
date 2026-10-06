@@ -1,170 +1,165 @@
-import Link from "next/link";
 import Image from "next/image";
-import { Home, Building, ArrowRight } from "lucide-react";
-import { FaCheckCircle, FaUserShield, FaRocket } from "react-icons/fa";
+import Link from "next/link";
+import { ArrowRight, Building2, CheckCircle2, Clock3, Home, ShieldCheck } from "lucide-react";
+import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
+
+const surveys = [
+  {
+    href: "/survey/4",
+    title: "Nhu cầu thuê nhà ở xã hội",
+    description:
+      "Dành cho cá nhân, hộ gia đình đang sinh sống và làm việc tại Đà Nẵng có nhu cầu thuê nhà.",
+    icon: Home,
+    code: "Phiếu 01",
+  },
+  {
+    href: "/survey/3",
+    title: "Nhu cầu mua nhà ở xã hội",
+    description:
+      "Dành cho cá nhân, hộ gia đình có nguyện vọng sở hữu nhà ở xã hội tại thành phố.",
+    icon: Building2,
+    code: "Phiếu 02",
+  },
+];
+
+const commitments = [
+  { title: "Dữ liệu thực tế", text: "Phản hồi được tổng hợp để phục vụ công tác lập kế hoạch.", icon: CheckCircle2 },
+  { title: "Thông tin an toàn", text: "Dữ liệu cá nhân được xử lý theo quy định hiện hành.", icon: ShieldCheck },
+  { title: "Khoảng 5 phút", text: "Biểu mẫu ngắn gọn, có thể thực hiện thuận tiện trên điện thoại.", icon: Clock3 },
+];
 
 export default function SurveyNavigationPage() {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans" style={{ fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" }}>
-      
-
-      <header className="bg-white py-4 px-6 md:px-12 shadow-sm flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-
-          <div className="relative w-12 h-12 flex-shrink-0">
-            <Image 
-              src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Emblem_of_Vietnam.svg/960px-Emblem_of_Vietnam.svg.png" 
-              alt="Logo Sở Xây Dựng Đà Nẵng" 
-              fill
-              className="object-contain"
+    <div className="flex min-h-screen w-full min-w-0 flex-col overflow-x-hidden bg-[#eef5f7] text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+      <header className="sticky top-0 z-40 border-b border-brand-100 bg-white/90 shadow-[0_6px_24px_rgba(18,52,65,0.06)] backdrop-blur dark:border-gray-800 dark:bg-gray-950/90">
+        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <Image
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Emblem_of_Vietnam.svg/960px-Emblem_of_Vietnam.svg.png"
+              alt="Quốc huy Việt Nam"
+              width={42}
+              height={42}
+              priority
+              className="size-10 shrink-0 object-contain"
             />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-blue-900 leading-tight uppercase">Sở Xây Dựng Đà Nẵng</h1>
-            <p className="text-xs text-slate-500 hidden sm:block">Cổng thông tin khảo sát nhà ở</p>
+            <span className="min-w-0 border-l border-gray-200 pl-3 dark:border-gray-700">
+              <span className="block text-sm font-semibold leading-5 text-gray-900 dark:text-white sm:text-base">
+                Sở Xây dựng Đà Nẵng
+              </span>
+              <span className="hidden text-xs text-gray-500 dark:text-gray-400 sm:block">
+                Cổng thông tin khảo sát nhà ở
+              </span>
+            </span>
+          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <ThemeToggleButton />
+            <Link
+              href="/"
+              className="hidden min-h-11 items-center rounded-lg px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white sm:inline-flex"
+            >
+              Trang chủ
+            </Link>
           </div>
         </div>
-        
-        <nav>
-          <Link href="/" className="text-sm font-bold text-blue-700 hover:text-blue-900 transition-colors">
-            Trang chủ
-          </Link>
-        </nav>
       </header>
 
-
-      <section className="relative w-full h-[400px] md:h-[450px]">
-     
-        <div className="absolute inset-0 z-0">
-          <Image 
-            src="https://images.unsplash.com/photo-1555109307-f7d9da25c244?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80" 
-            alt="Đà Nẵng Banner"
-            fill
-            className="object-cover"
-            priority
-          />
-          
-          <div className="absolute inset-0 bg-gradient-to-b from-blue-900/60 via-blue-900/40 to-slate-50/90"></div>
-        </div>
-        
-        <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-4 pt-8 md:pt-16 pb-24">
-          <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4 tracking-tight drop-shadow-md uppercase">
-            Khảo Sát Nhu Cầu Nhà Ở Xã Hội
-          </h2>
-          <p className="text-blue-50 md:text-lg max-w-2xl font-medium drop-shadow text-sm">
-            Ý kiến của bạn giúp chúng tôi xây dựng chính sách nhà ở tốt hơn cho cộng đồng
-          </p>
-        </div>
-      </section>
-
-   
-      <section className="relative z-20 w-full max-w-5xl mx-auto px-4 -mt-32 mb-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-       
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col items-center text-center p-8 md:p-10 border border-slate-100 transition-transform duration-300 hover:-translate-y-2 hover:shadow-2xl">
-            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6">
-              <Home className="w-8 h-8 text-blue-700" strokeWidth={2} />
-            </div>
-            
-            <h3 className="text-2xl font-bold text-slate-800 mb-4">
-              Thuê nhà ở Xã hội
-            </h3>
-            
-            <p className="text-slate-500 text-sm md:text-base leading-relaxed flex-grow mb-8 px-2 md:px-4">
-              Khảo sát nhu cầu thuê nhà ở xã hội dành cho cá nhân, hộ gia đình đang sinh sống và làm việc tại Đà Nẵng.
-            </p>
-            
-            <Link 
-              href="/survey/4" 
-              className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-blue-700/30"
-            >
-              Bắt đầu khảo sát
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Link>
-          </div>
-
-        
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col items-center text-center p-8 md:p-10 border border-slate-100 transition-transform duration-300 hover:-translate-y-2 hover:shadow-2xl">
-            <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mb-6">
-              <Building className="w-8 h-8 text-green-600" strokeWidth={2} />
-            </div>
-            
-            <h3 className="text-2xl font-bold text-slate-800 mb-4">
-              Mua nhà ở Xã hội
-            </h3>
-            
-            <p className="text-slate-500 text-sm md:text-base leading-relaxed flex-grow mb-8 px-2 md:px-4">
-              Khảo sát nhu cầu mua nhà ở xã hội dành cho cá nhân, hộ gia đình có nguyện vọng sở hữu nhà ở xã hội tại Đà Nẵng.
-            </p>
-            
-            <Link 
-              href="/survey/3" 
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-green-600/30"
-            >
-              Bắt đầu khảo sát
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Link>
-          </div>
-
-        </div>
-      </section>
-
-
-      <section className="bg-slate-50 py-16 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h3 className="text-2xl md:text-3xl font-bold text-center text-blue-900 mb-12">
-            Tại sao cần thực hiện khảo sát?
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 text-center">
-            
-            <div className="flex flex-col items-center">
-              <div className="mb-4">
-                <FaCheckCircle className="w-10 h-10 text-green-600" />
-              </div>
-              <h4 className="text-lg font-bold text-slate-800 mb-3">Chính xác</h4>
-              <p className="text-slate-500 text-sm px-4 leading-relaxed">
-                Số liệu thực tế giúp Sở Xây dựng lập kế hoạch phát triển sát với nhu cầu dân cư.
+      <main className="relative min-w-0 flex-1 overflow-hidden">
+        <div aria-hidden="true" className="pointer-events-none absolute -left-40 top-24 size-[32rem] rounded-full bg-brand-200/35 blur-3xl dark:bg-brand-900/10" />
+        <section className="relative min-w-0 px-4 pt-5 sm:px-6 sm:pt-7 lg:px-8">
+          <div className="mx-auto grid w-full max-w-7xl grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[1.75rem] border border-white/80 bg-white shadow-[0_22px_65px_rgba(18,52,65,0.12)] dark:border-gray-800 dark:bg-gray-900 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+            <div className="relative flex min-w-0 flex-col justify-center overflow-hidden px-6 py-12 sm:px-10 sm:py-16 lg:px-14 lg:py-24">
+              <div aria-hidden="true" className="absolute -bottom-32 -left-32 size-80 rounded-full bg-brand-50 dark:bg-brand-950/70" />
+              <div className="relative min-w-0">
+              <p className="mb-5 flex w-fit items-center gap-3 text-sm font-semibold text-brand-700 dark:text-brand-300">
+                <span className="h-px w-9 bg-brand-500" />
+                Khảo sát nhu cầu nhà ở xã hội
               </p>
-            </div>
-
-            <div className="flex flex-col items-center">
-              <div className="mb-4">
-                <FaUserShield className="w-10 h-10 text-green-600" />
-              </div>
-              <h4 className="text-lg font-bold text-slate-800 mb-3">Bảo mật</h4>
-              <p className="text-slate-500 text-sm px-4 leading-relaxed">
-                Thông tin cá nhân của người dân được bảo mật tuyệt đối theo quy định.
+              <h1 className="max-w-3xl text-4xl font-semibold leading-[1.12] tracking-[-0.035em] text-gray-950 dark:text-white sm:text-5xl lg:text-6xl">
+                Cùng xây dựng chính sách nhà ở sát với nhu cầu thực tế.
+              </h1>
+              <p className="mt-6 max-w-2xl text-base leading-7 text-gray-600 dark:text-gray-300 sm:text-lg sm:leading-8">
+                Mỗi phản hồi giúp thành phố hiểu rõ hơn nhu cầu thuê và mua nhà ở xã hội của người dân Đà Nẵng.
               </p>
-            </div>
-
-            <div className="flex flex-col items-center">
-              <div className="mb-4">
-                <FaRocket className="w-10 h-10 text-green-600" />
+              <div className="mt-8 inline-flex max-w-full items-start gap-3 self-start rounded-xl bg-brand-50 px-4 py-3 text-sm font-medium leading-5 text-brand-800 dark:bg-brand-950 dark:text-brand-200">
+                <Clock3 aria-hidden="true" size={18} className="mt-0.5 shrink-0" />
+                <span className="min-w-0 break-words">Chỉ mất khoảng 5 phút để hoàn thành</span>
               </div>
-              <h4 className="text-lg font-bold text-slate-800 mb-3">Nhanh chóng</h4>
-              <p className="text-slate-500 text-sm px-4 leading-relaxed">
-                Chỉ mất 5 phút để hoàn thành phiếu khảo sát trực tuyến.
-              </p>
+              </div>
             </div>
-
+            <div className="relative min-h-72 min-w-0 overflow-hidden border-t border-gray-200 dark:border-gray-800 lg:min-h-full lg:border-l lg:border-t-0">
+              <Image
+                src="https://images.unsplash.com/photo-1555109307-f7d9da25c244?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80"
+                alt="Không gian đô thị Đà Nẵng"
+                fill
+                priority
+                sizes="(max-width: 1024px) 100vw, 48vw"
+                className="object-cover saturate-[.85] dark:brightness-75"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-gray-950/55 via-transparent to-transparent" />
+              <div className="absolute bottom-5 left-5 right-5 max-w-md break-words rounded-xl border border-white/20 bg-gray-950/55 p-4 text-sm leading-6 text-white backdrop-blur-md sm:bottom-7 sm:left-7">
+                Thông tin đúng giúp nguồn lực nhà ở đến đúng nơi cần thiết.
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-    
-      <footer className="mt-auto bg-gradient-to-r from-gray-900 to-gray-800 text-white text-center py-8">
-            <h2 className="text-lg font-semibold tracking-wide">
-                SỞ XÂY DỰNG THÀNH PHỐ ĐÀ NẴNG
+        <section className="page-shell relative py-12 sm:py-16">
+          <div className="mb-8 max-w-2xl border-l-4 border-brand-500 pl-4">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white sm:text-3xl">
+              Chọn nội dung phù hợp với nhu cầu của bạn
             </h2>
-
-            <p className="mt-2 text-sm text-gray-200">
-                Địa chỉ: 24 Pasteur, Hải Châu, Đà Nẵng | Điện thoại: 0236 3822 000
+            <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300 sm:text-base">
+              Bạn có thể mở biểu mẫu ngay và hoàn thành trên máy tính hoặc điện thoại.
             </p>
+          </div>
 
-            <p className="mt-3 text-xs text-gray-400">
-                © {new Date().getFullYear()} Bản quyền thuộc về Sở Xây dựng Đà Nẵng
-            </p>
+          <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
+            {surveys.map(({ href, title, description, icon: Icon, code }, index) => (
+              <article key={href} className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white bg-white p-5 shadow-[0_14px_38px_rgba(18,52,65,0.10)] dark:border-gray-800 dark:bg-gray-900 sm:p-7">
+                <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${index === 0 ? "bg-brand-500" : "bg-[#d39438]"}`} />
+                <div className="flex items-start justify-between gap-4">
+                  <span className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${index === 0 ? "bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300" : "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300"}`}>
+                    <Icon aria-hidden="true" size={22} />
+                  </span>
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{code}</span>
+                </div>
+                <h3 className="mt-6 text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">{title}</h3>
+                <p className="mt-3 flex-1 text-sm leading-6 text-gray-600 dark:text-gray-300 sm:text-base sm:leading-7">{description}</p>
+                <Link
+                  href={href}
+                  className="group mt-7 inline-flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(23,107,135,0.22)] transition-[background-color,transform] hover:-translate-y-0.5 hover:bg-brand-600 sm:w-auto"
+                >
+                  Bắt đầu khảo sát
+                  <ArrowRight aria-hidden="true" size={18} className="shrink-0 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="relative px-4 pb-14 sm:px-6 sm:pb-16 lg:px-8">
+          <div className="mx-auto grid w-full max-w-7xl gap-5 rounded-2xl bg-brand-900 px-5 py-8 text-white shadow-[0_18px_45px_rgba(7,31,42,0.16)] dark:border dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-3 sm:px-8 sm:py-10">
+            {commitments.map(({ title, text, icon: Icon }) => (
+              <div key={title} className="grid min-w-0 grid-cols-[2.5rem_1fr] gap-4 rounded-xl bg-white/[0.06] p-4">
+                <Icon aria-hidden="true" className="mt-0.5 text-brand-200" size={24} />
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-white">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-brand-100">{text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-gray-950 px-4 py-8 text-gray-300 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 text-sm leading-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-semibold text-white">Sở Xây dựng thành phố Đà Nẵng</p>
+            <p className="mt-1 text-gray-400">24 Pasteur, Hải Châu, Đà Nẵng · 0236 3822 000</p>
+          </div>
+          <p className="text-xs text-gray-500">© {new Date().getFullYear()} Sở Xây dựng Đà Nẵng</p>
+        </div>
       </footer>
     </div>
   );

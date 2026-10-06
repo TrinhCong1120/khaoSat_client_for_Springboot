@@ -53,11 +53,11 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const mainContentMargin = isMobileOpen
     ? "ml-0"
     : isExpanded
-    ? "md:ml-[264px]"
-    : "md:ml-[68px]";
+    ? "lg:ml-[264px]"
+    : "lg:ml-[68px]";
 
   return (
-    <div className="min-h-screen xl:flex bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 lg:flex">
       {/* SIDEBAR */}
       <AdminSidebar />
 
@@ -66,23 +66,23 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* MAIN */}
       <div
-        className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin} bg-gray-50 dark:bg-gray-900`}
+        className={`min-w-0 flex-1 bg-gray-50 transition-[margin] duration-300 ease-in-out dark:bg-gray-950 ${mainContentMargin}`}
       >
         {/* HEADER */}
         <AdminHeader />
 
 
         {/* CONTENT */}
-        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6 bg-transparent">
+        <div className="mx-auto w-full max-w-(--breakpoint-2xl) px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-brand-500 dark:text-gray-500 dark:hover:text-brand-400 mb-6 group transition-all"
+            className="group mb-5 inline-flex min-h-10 items-center gap-2 rounded-lg px-1 text-sm font-medium text-gray-600 transition-colors hover:text-brand-700 dark:text-gray-300 dark:hover:text-brand-300"
           >
             <FiArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
             Quay lại
           </button>
           
-          <main className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <main id="main-content" className="min-w-0">
             {children}
           </main>
         </div>

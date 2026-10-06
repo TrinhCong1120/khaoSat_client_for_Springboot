@@ -4,7 +4,7 @@
 
 @theme {
   --font-*: initial;
-  --font-outfit: Outfit, sans-serif;
+  --font-outfit: "Segoe UI Variable", "Segoe UI", Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
@@ -38,18 +38,19 @@
   --color-white: #ffffff;
   --color-black: #101828;
 
-  --color-brand-25: #f2f7ff;
-  --color-brand-50: #ecf3ff;
-  --color-brand-100: #dde9ff;
-  --color-brand-200: #c2d6ff;
-  --color-brand-300: #9cb9ff;
-  --color-brand-400: #7592ff;
-  --color-brand-500: #465fff;
-  --color-brand-600: #3641f5;
-  --color-brand-700: #2a31d8;
-  --color-brand-800: #252dae;
-  --color-brand-900: #262e89;
-  --color-brand-950: #161950;
+  /* Civic blue: calm, legible and specific to a public-service product. */
+  --color-brand-25: #f5fafb;
+  --color-brand-50: #eaf5f7;
+  --color-brand-100: #d4eaef;
+  --color-brand-200: #afd8e1;
+  --color-brand-300: #7ebdcb;
+  --color-brand-400: #479bad;
+  --color-brand-500: #176b87;
+  --color-brand-600: #125a72;
+  --color-brand-700: #12495d;
+  --color-brand-800: #133d4d;
+  --color-brand-900: #123441;
+  --color-brand-950: #071f2a;
 
   --color-blue-light-25: #f5fbff;
   --color-blue-light-50: #f0f9ff;
@@ -188,8 +189,65 @@
     cursor: pointer;
   }
   body {
-    @apply relative font-normal font-outfit z-1 bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-200 transition-colors duration-300;
+    @apply relative z-1 min-w-0 w-full overflow-x-hidden bg-gray-50 font-outfit font-normal text-gray-800 antialiased dark:bg-gray-950 dark:text-gray-200;
+    overflow-wrap: anywhere;
+    text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: rgba(23, 107, 135, 0.14);
   }
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  :where(h1, h2, h3) {
+    text-wrap: balance;
+  }
+  :where(p, li, dd) {
+    text-wrap: pretty;
+  }
+  :where(button, a, input, select, textarea, [role="button"]):focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+  :where(button, input, select, textarea) {
+    font: inherit;
+  }
+  :where(img, video, canvas, svg) {
+    max-width: 100%;
+  }
+  :where(table) {
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-brand-500) 24%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@utility page-shell {
+  @apply mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-7 lg:px-8;
+}
+
+@utility surface-panel {
+  @apply rounded-xl border border-gray-200/80 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900;
+}
+
+@utility text-readable {
+  max-width: 72ch;
 }
 
 @utility menu-item {

@@ -6,10 +6,14 @@ export default function ThemeTogglerTwo() {
   const { toggleTheme } = useTheme();
   return (
     <button
+      type="button"
       onClick={toggleTheme}
+      aria-label="Chuyển chế độ sáng hoặc tối"
+      title="Chuyển chế độ sáng hoặc tối"
       className="inline-flex size-14 items-center justify-center rounded-full bg-brand-500 text-white transition-colors hover:bg-brand-600"
     >
       <svg
+        aria-hidden="true"
         className="hidden dark:block"
         width="20"
         height="20"
@@ -25,6 +29,7 @@ export default function ThemeTogglerTwo() {
         />
       </svg>
       <svg
+        aria-hidden="true"
         className="dark:hidden"
         width="20"
         height="20"

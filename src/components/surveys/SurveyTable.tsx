@@ -11,6 +11,7 @@ import {
   FiX,
   FiCopy,
 } from "react-icons/fi";
+import { QRCodeSVG } from "qrcode.react";
 import { API_PUBLIC_SURVEYS } from "@/lib/api";
 
 type Survey = {
@@ -58,7 +59,7 @@ export default function SurveyTable({
 
   return (
     <>
-    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden bg-white dark:bg-gray-900 transition-all">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
       <div className="hidden overflow-hidden text-gray-500 dark:text-gray-400 md:block">
         <table className="w-full table-fixed text-sm text-left">
           <colgroup>
@@ -71,9 +72,11 @@ export default function SurveyTable({
           </colgroup>
 
           {/* HEADER */}
-          <thead className="bg-gray-50/50 dark:bg-gray-800/50 text-[11px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">
+          <thead className="bg-gray-50 text-xs font-semibold text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
             <tr className="border-b border-gray-100 dark:border-gray-800">
-              <th className="px-6 py-4">ID</th>
+              <th className="px-3 py-4 align-middle">
+                <span className="relative top-0.5">ID</span>
+              </th>
               <th className="px-6 py-4">Tiêu đề</th>
               <th className="px-6 py-4">Mô tả</th>
               <th className="px-6 py-4">Trạng thái</th>
@@ -125,7 +128,7 @@ export default function SurveyTable({
                       disabled={busy}
                       onClick={() => onToggleActive(s.id, !open)}
                       title={open ? "Nhấn để đóng khảo sát" : "Nhấn để mở lại"}
-                      className={`inline-flex whitespace-nowrap items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-50 ${
+                      className={`inline-flex whitespace-nowrap items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
                         open
                           ? "border-success-200 bg-success-50 text-success-700 hover:bg-success-100 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400 dark:hover:bg-success-500/15"
                           : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -147,7 +150,7 @@ export default function SurveyTable({
                     <button
                       type="button"
                       onClick={() => setLinkSurvey(s)}
-                      className="inline-flex whitespace-nowrap items-center gap-1.5 text-brand-500 hover:text-brand-600 font-bold text-xs uppercase tracking-tight transition-colors group/link"
+                      className="group/link inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-brand-700 transition-colors hover:text-brand-600 dark:text-brand-300"
                     >
                       <span>Xem link</span>
                       <FiExternalLink size={14} className="group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
@@ -230,11 +233,12 @@ export default function SurveyTable({
               <div className="flex flex-col items-center rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/50">
                 <p className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Mã QR link FE</p>
                 <div className="rounded-xl bg-white p-2 shadow-sm">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(origin ? `${origin}/survey/${linkSurvey.id}` : `/survey/${linkSurvey.id}`)}`}
-                    alt={`Mã QR mở khảo sát ${linkSurvey.title}`}
-                    width={220}
-                    height={220}
+                  <QRCodeSVG
+                    value={origin ? `${origin}/survey/${linkSurvey.id}` : `/survey/${linkSurvey.id}`}
+                    size={220}
+                    level="H"
+                    marginSize={4}
+                    title={`Mã QR mở khảo sát ${linkSurvey.title}`}
                   />
                 </div>
                 <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">Quét mã để mở trang khảo sát</p>

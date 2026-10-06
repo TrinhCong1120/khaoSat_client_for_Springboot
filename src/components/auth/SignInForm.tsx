@@ -342,13 +342,13 @@ export default function SignInForm() {
   // ========================================
 
   return (
-    <div className="flex flex-col flex-1 lg:w-1/2 w-full">
+    <div className="flex min-w-0 flex-1 flex-col px-1 sm:px-6 lg:w-1/2 lg:px-10">
 
       {/* BACK */}
-      <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
+      <div className="mx-auto mb-8 w-full max-w-md pt-2 sm:pt-10">
         <Link
           href="/"
-          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
+          className="inline-flex min-h-11 items-center gap-2 text-sm text-gray-600 transition-colors hover:text-brand-700 dark:text-gray-300 dark:hover:text-brand-300"
         >
           <ChevronLeftIcon />
           Quay lại trang chủ
@@ -356,17 +356,17 @@ export default function SignInForm() {
       </div>
 
       {/* FORM */}
-      <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center pb-10">
 
         <div>
 
           {/* HEADER */}
           <div className="mb-6">
-            <h1 className="mb-2 font-semibold text-2xl">
+            <h1 className="mb-2 text-3xl font-semibold text-gray-900 dark:text-white">
               Đăng nhập
             </h1>
 
-            <p className="text-sm text-gray-500">
+            <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
               Nhập tên đăng nhập và mật khẩu của bạn
             </p>
           </div>
@@ -387,14 +387,17 @@ export default function SignInForm() {
 
               {/* USERNAME */}
               <div>
-                <Label>
+                <Label htmlFor="signin-username">
                   Tên đăng nhập{" "}
                   <span className="text-red-500">*</span>
                 </Label>
 
                 <Input
+                  id="signin-username"
+                  name="username"
                   type="text"
-                  placeholder="Nhập tên đăng nhập"
+                  autoComplete="username"
+                  placeholder="Nhập tên đăng nhập…"
                   value={username}
                   onChange={(
                     e: React.ChangeEvent<HTMLInputElement>
@@ -404,7 +407,7 @@ export default function SignInForm() {
 
               {/* PASSWORD */}
               <div>
-                <Label>
+                <Label htmlFor="signin-password">
                   Mật khẩu{" "}
                   <span className="text-red-500">*</span>
                 </Label>
@@ -412,51 +415,54 @@ export default function SignInForm() {
                 <div className="relative">
 
                   <Input
+                    id="signin-password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Nhập mật khẩu"
+                    autoComplete="current-password"
+                    placeholder="Nhập mật khẩu…"
                     value={password}
                     onChange={(
                       e: React.ChangeEvent<HTMLInputElement>
                     ) => setPassword(e.target.value)}
                   />
 
-                  <span
+                  <button
+                    type="button"
                     onClick={() =>
                       setShowPassword(!showPassword)
                     }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer"
+                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                    aria-pressed={showPassword}
+                    className="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
                   >
                     {showPassword ? (
                       <EyeIcon />
                     ) : (
                       <EyeCloseIcon />
                     )}
-                  </span>
+                  </button>
 
                 </div>
               </div>
 
               {/* REMEMBER PASSWORD */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-between">
 
-                <div className="flex items-center gap-2">
-
+                <div>
                   <Checkbox
+                    id="remember-me"
+                    label="Ghi nhớ đăng nhập"
                     checked={isChecked}
                     onChange={(checked: boolean) =>
                       setIsChecked(checked)
                     }
                   />
 
-                  <span className="text-sm">
-                    Ghi nhớ đăng nhập
-                  </span>
-
                 </div>
 
                 <Link
                   href="/reset-password"
-                  className="text-sm text-blue-500"
+                  className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300"
                 >
                   Quên mật khẩu?
                 </Link>
@@ -471,7 +477,7 @@ export default function SignInForm() {
                 disabled={loading}
               >
                 {loading
-                  ? "Đang đăng nhập..."
+                  ? "Đang đăng nhập…"
                   : "Đăng nhập"}
               </Button>
 

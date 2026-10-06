@@ -16,12 +16,12 @@ const RoleTable: React.FC<RoleTableProps> = ({
   onDelete,
 }) => {
   return (
-    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden bg-white dark:bg-gray-900 transition-all">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
       <div className="hidden w-full overflow-x-auto md:block">
         <table className="w-full min-w-[460px] text-left text-sm">
           
           {/* HEADER */}
-          <thead className="bg-gray-50/50 dark:bg-gray-800/50 text-[11px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">
+          <thead className="bg-gray-50 text-xs font-semibold text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
             <tr className="border-b border-gray-100 dark:border-gray-800">
               <th className="px-6 py-4">ID</th>
               <th className="px-6 py-4">Tên vai trò</th>

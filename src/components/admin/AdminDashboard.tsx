@@ -365,13 +365,13 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6 pb-8">
-      <header className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-theme-sm lg:flex-row lg:items-center lg:justify-between lg:px-7 dark:border-gray-800 dark:bg-gray-900">
+      <header className="flex flex-col gap-4 border-b border-gray-200 pb-6 lg:flex-row lg:items-end lg:justify-between dark:border-gray-800">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-theme-xs font-semibold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-400">
+          <div className="mb-2 flex items-center gap-2 text-theme-xs font-semibold text-brand-700 dark:text-brand-300">
             <FiActivity className="size-4" />
             Trung tâm điều hành
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white xl:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white xl:text-3xl">
             Tổng quan hệ thống
           </h1>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
@@ -419,14 +419,11 @@ export default function AdminDashboard() {
         {kpiCards.map((k) => (
           <article
             key={k.label}
-            className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm transition-shadow hover:shadow-theme-md dark:border-gray-800 dark:bg-gray-900"
+            className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
           >
-            <div
-              className={`absolute -right-6 -top-6 size-24 rounded-full bg-gradient-to-br ${k.accent} opacity-40 blur-2xl`}
-            />
             <div className="relative flex items-start justify-between gap-3">
-              <div>
-                <p className="text-theme-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div className="min-w-0">
+                <p className="text-theme-xs font-medium text-gray-600 dark:text-gray-300">
                   {k.label}
                 </p>
                 <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -437,7 +434,7 @@ export default function AdminDashboard() {
                 </p>
               </div>
               <div
-                className={`flex size-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${k.accent}`}
+                className={`flex size-10 shrink-0 items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-800 ${k.accent}`}
               >
                 {k.icon}
               </div>
@@ -463,7 +460,7 @@ export default function AdminDashboard() {
       </section>
 
       <section className="grid grid-cols-1 gap-6 2xl:grid-cols-12">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm 2xl:col-span-8 2xl:p-6 dark:border-gray-800 dark:bg-gray-900">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs 2xl:col-span-8 2xl:p-6 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-theme-sm font-semibold text-gray-800 dark:text-white">
               Nhịp hoạt động
@@ -491,7 +488,7 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm 2xl:col-span-4 dark:border-gray-800 dark:bg-gray-900">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs 2xl:col-span-4 dark:border-gray-800 dark:bg-gray-900">
           <h2 className="mb-1 text-theme-sm font-semibold text-gray-800 dark:text-white">
             Trạng thái khảo sát
           </h2>
@@ -515,7 +512,7 @@ export default function AdminDashboard() {
       </section>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-sm xl:col-span-2 dark:border-gray-800 dark:bg-gray-900">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs xl:col-span-2 dark:border-gray-800 dark:bg-gray-900">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-theme-sm font-semibold text-gray-800 dark:text-white">
@@ -564,33 +561,33 @@ export default function AdminDashboard() {
         )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3 rounded-2xl border border-gray-200 bg-gray-900 p-5 text-white shadow-theme-sm dark:border-gray-700 dark:bg-gray-950">
-          <div className="col-span-2 flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="grid grid-cols-2 gap-x-4 rounded-xl border border-gray-200 bg-white p-4 text-gray-900 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 dark:text-white sm:p-5">
+          <div className="col-span-2 flex items-center justify-between border-b border-gray-200 pb-4 dark:border-gray-800">
             <div>
-              <p className="text-theme-xs font-semibold uppercase tracking-[0.14em] text-white/50">Tín hiệu tuần</p>
+              <p className="text-theme-xs font-semibold text-gray-500 dark:text-gray-400">Tín hiệu tuần</p>
               <h2 className="mt-1 text-lg font-semibold">Sức khỏe thu thập</h2>
             </div>
-            <FiTarget className="size-6 text-orange-300" />
+            <FiTarget className="size-6 text-orange-500 dark:text-orange-300" />
           </div>
-          <div className="border-b border-white/10 py-3">
-            <FiBarChart2 className="mb-2 size-4 text-brand-300" />
+          <div className="min-w-0 border-b border-gray-200 py-3 dark:border-gray-800">
+            <FiBarChart2 className="mb-2 size-4 text-brand-600 dark:text-brand-300" />
             <p className="text-2xl font-bold tabular-nums">{responseRate7Days == null ? "—" : `${responseRate7Days}%`}</p>
-            <p className="mt-1 text-theme-xs text-white/55">chuyển đổi xem → gửi</p>
+            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">chuyển đổi xem → gửi</p>
           </div>
-          <div className="border-b border-white/10 py-3">
-            <FiArrowUpRight className="mb-2 size-4 text-success-300" />
+          <div className="min-w-0 border-b border-gray-200 py-3 dark:border-gray-800">
+            <FiArrowUpRight className="mb-2 size-4 text-success-600 dark:text-success-300" />
             <p className="text-2xl font-bold tabular-nums">{formatViInt(Math.round(totalResponses7Days / 7))}</p>
-            <p className="mt-1 text-theme-xs text-white/55">phản hồi trung bình/ngày</p>
+            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">phản hồi trung bình/ngày</p>
           </div>
-          <div className="py-3">
-            <FiEye className="mb-2 size-4 text-orange-300" />
+          <div className="min-w-0 py-3">
+            <FiEye className="mb-2 size-4 text-orange-500 dark:text-orange-300" />
             <p className="text-2xl font-bold tabular-nums">{formatViInt(totalViews7Days)}</p>
-            <p className="mt-1 text-theme-xs text-white/55">tổng lượt xem 7 ngày</p>
+            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">tổng lượt xem 7 ngày</p>
           </div>
-          <div className="py-3">
-            <FiClipboard className="mb-2 size-4 text-blue-light-300" />
+          <div className="min-w-0 py-3">
+            <FiClipboard className="mb-2 size-4 text-blue-light-600 dark:text-blue-light-300" />
             <p className="text-2xl font-bold tabular-nums">{formatViInt(data?.kpis.openSurveys ?? 0)}</p>
-            <p className="mt-1 text-theme-xs text-white/55">khảo sát đang mở</p>
+            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">khảo sát đang mở</p>
           </div>
         </div>
       </section>

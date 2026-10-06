@@ -702,24 +702,22 @@ export default function PublicSurvey() {
     }
   };
 
-  if (!survey) return <div className="p-10">Đang tải...</div>;
-
   if (loadState === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4 py-10">
-        <div className="text-sm text-gray-500">Đang tải khảo sát...</div>
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10 dark:bg-gray-950">
+        <div className="text-sm text-gray-600 dark:text-gray-300" role="status">Đang tải khảo sát…</div>
       </main>
     );
   }
 
   if (loadState === "not-found" || !survey) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4 py-10 text-[#1f2937]">
-        <section className="w-full max-w-md rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center shadow-sm sm:px-10">
-          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-full bg-indigo-50 text-2xl font-bold text-indigo-600">404</div>
-          <h1 className="text-2xl font-bold text-gray-900">Khảo sát không tồn tại</h1>
-          <p className="mt-2 text-sm leading-6 text-gray-500">Khảo sát bạn đang truy cập không tồn tại, đã bị xóa hoặc đường dẫn không chính xác.</p>
-          <Link href="/survey" className="mt-6 inline-flex rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">Về danh sách khảo sát</Link>
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10 text-gray-800 dark:bg-gray-950 dark:text-gray-100">
+        <section className="w-full max-w-md rounded-xl border border-gray-200 bg-white px-6 py-10 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-10">
+          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-full bg-brand-50 text-2xl font-bold text-brand-700 dark:bg-brand-950 dark:text-brand-300">404</div>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Khảo sát không tồn tại</h1>
+          <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Khảo sát bạn đang truy cập không tồn tại, đã bị xóa hoặc đường dẫn không chính xác.</p>
+          <Link href="/survey" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600">Về danh sách khảo sát</Link>
         </section>
       </main>
     );
@@ -727,15 +725,15 @@ export default function PublicSurvey() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-[#f5f7fb] px-4 py-10 text-[#1f2937]">
-        <div className="mx-auto max-w-[760px] rounded-xl bg-white px-8 py-12 text-center shadow-[0_2px_8px_rgba(0,0,0,0.05)]">
-          <div className="mx-auto mb-5 flex h-[65px] w-[65px] items-center justify-center rounded-full bg-green-100 text-[32px] font-bold text-green-600">
+      <main className="min-h-screen bg-gray-50 px-4 py-10 text-gray-800 dark:bg-gray-950 dark:text-gray-100">
+        <div className="mx-auto max-w-3xl rounded-xl border border-gray-200 bg-white px-5 py-12 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-8">
+          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-full bg-success-100 text-3xl font-bold text-success-700 dark:bg-success-950 dark:text-success-300">
             ✓
           </div>
-          <h2 className="mb-2 text-2xl font-bold">Cảm ơn bạn!</h2>
-          <p className="text-gray-500">Câu trả lời của bạn đã được ghi nhận.</p>
+          <h1 className="mb-2 text-2xl font-semibold text-gray-900 dark:text-white">Cảm ơn bạn!</h1>
+          <p className="text-gray-600 dark:text-gray-300">Câu trả lời của bạn đã được ghi nhận.</p>
         </div>
-      </div>
+      </main>
     );
   }
 
@@ -749,7 +747,7 @@ export default function PublicSurvey() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 px-4 shadow-sm backdrop-blur sm:hidden">
+      <header className="sticky top-0 z-40 flex min-h-14 items-center justify-between border-b border-gray-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 sm:hidden">
         <Link href="/survey" className="flex min-w-0 items-center gap-2.5" aria-label="Về trang khảo sát">
           <Image
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Emblem_of_Vietnam.svg/960px-Emblem_of_Vietnam.svg.png"
@@ -759,29 +757,29 @@ export default function PublicSurvey() {
             priority
             className="h-9 w-9 shrink-0 object-contain"
           />
-          <span className="min-w-0 truncate text-sm font-bold text-blue-900">Sở Xây dựng Đà Nẵng</span>
+          <span className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-white">Sở Xây dựng Đà Nẵng</span>
         </Link>
-        <Link href="/" className="ml-3 shrink-0 rounded-md px-2.5 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 hover:text-blue-900">
+        <Link href="/" className="ml-3 shrink-0 rounded-md px-2.5 py-2 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950">
           Trang chủ
         </Link>
       </header>
-      <main className="min-h-screen bg-[#f5f7fb] px-4 py-5 text-[#1f2937] sm:py-10">
-      <div className="mx-auto w-full max-w-[760px]">
-        <section className="mb-[18px] rounded-xl border-t-[5px] border-indigo-600 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.05)] sm:p-7">
-          <h1 className="mb-2 text-[22px] font-bold sm:text-[26px]">{survey.title || "Khảo sát mức độ hài lòng"}</h1>
-          <p className="leading-relaxed text-gray-500">
+      <main className="min-h-screen bg-gray-50 px-3 py-4 text-gray-800 dark:bg-gray-950 dark:text-gray-100 sm:px-5 sm:py-10">
+      <div className="mx-auto w-full max-w-3xl">
+        <section className="mb-5 rounded-xl border border-gray-200 border-t-4 border-t-brand-500 bg-white p-5 shadow-sm dark:border-gray-800 dark:border-t-brand-400 dark:bg-gray-900 sm:p-7">
+          <h1 className="mb-2 text-xl font-semibold leading-tight text-gray-900 dark:text-white sm:text-2xl">{survey.title || "Khảo sát mức độ hài lòng"}</h1>
+          <p className="leading-7 text-gray-600 dark:text-gray-300">
             {survey.description || "Cảm ơn bạn đã dành thời gian tham gia khảo sát. Ý kiến của bạn sẽ giúp chúng tôi cải thiện chất lượng dịch vụ."}
           </p>
           {survey.imageUrl && <img src={survey.imageUrl} alt="" className="mt-4 max-h-72 w-full rounded-lg object-contain" />}
           {survey.videoUrl && <video src={survey.videoUrl} controls className="mt-4 max-h-72 w-full rounded-lg" />}
           {survey.audioUrl && <audio src={survey.audioUrl} controls className="mt-4 w-full" />}
-          <div className="mb-2 mt-[22px] flex justify-between text-sm text-gray-500">
+          <div className="mb-2 mt-6 flex justify-between text-sm text-gray-600 dark:text-gray-300">
             <span>Trang {Math.min(currentPage + 1, pageCount)} / {pageCount}</span>
             <span>{Math.round(((currentPage + 1) / pageCount) * 100)}%</span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-gray-200">
+          <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
             <div
-              className="h-full bg-indigo-600 transition-[width] duration-300"
+              className="h-full bg-brand-500 transition-[width] duration-300"
               style={{ width: `${((currentPage + 1) / pageCount) * 100}%` }}
             />
           </div>
@@ -789,8 +787,8 @@ export default function PublicSurvey() {
 
         <section>
           <div className="mx-1 mb-3 mt-[26px]">
-            <h2 className="text-[19px] font-bold">{page?.title || `Thông tin khảo sát`}</h2>
-            {page?.description && <p className="mt-1 text-sm leading-relaxed text-gray-500">{page.description}</p>}
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">{page?.title || `Thông tin khảo sát`}</h2>
+            {page?.description && <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{page.description}</p>}
             {page?.imageUrl && <img src={page.imageUrl} alt="" className="mt-3 max-h-64 w-full rounded-lg object-contain" />}
             {page?.videoUrl && <video src={page.videoUrl} controls className="mt-3 max-h-64 w-full rounded-lg" />}
             {page?.audioUrl && <audio src={page.audioUrl} controls className="mt-3 w-full" />}
@@ -832,22 +830,22 @@ export default function PublicSurvey() {
                     void validateAnswersWithBackend([q]);
                   }
                 }}
-                className={`mb-3 rounded-xl border bg-white p-[18px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-colors sm:p-[22px] ${
-                  enabled ? "border-transparent" : "border-gray-200 bg-[#fafafa]"
+                className={`mb-3 min-w-0 scroll-mt-20 rounded-xl border bg-white p-4 shadow-theme-xs transition-colors dark:bg-gray-900 sm:p-6 ${
+                  enabled ? "border-gray-200 dark:border-gray-800" : "border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-900/60"
                 }`}
               >
                 {!enabled && (
-                  <div className="mb-4 flex items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-gray-100 px-4 py-3 text-gray-500">
-                    <div className="flex h-9 w-9 min-w-9 items-center justify-center rounded-full bg-gray-200 text-[17px]">🔒</div>
-                    <div>
-                      <div className="mb-0.5 text-sm font-semibold text-gray-600">Câu hỏi được bỏ qua</div>
-                      <div className="text-[13px] leading-snug text-gray-400">Câu hỏi này không áp dụng với lựa chọn hiện tại.</div>
+                  <div className="mb-4 flex items-start gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-100 px-4 py-3 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                    <div aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gray-200 text-base dark:bg-gray-700">🔒</div>
+                    <div className="min-w-0">
+                      <div className="mb-0.5 text-sm font-semibold text-gray-700 dark:text-gray-200">Câu hỏi được bỏ qua</div>
+                      <div className="text-[13px] leading-snug text-gray-500 dark:text-gray-400">Câu hỏi này không áp dụng với lựa chọn hiện tại.</div>
                     </div>
                   </div>
                 )}
-                {errors[q.id] && <p className="mt-1 text-xs  text-red-400">{errors[q.id]}</p>}
+                {errors[q.id] && <p id={`question-error-${q.id}`} role="alert" className="mt-1 text-sm text-error-600 dark:text-error-400">{errors[q.id]}</p>}
                 {q.description && (
-                  <div className={`mb-4 mt-1 text-sm leading-relaxed ${enabled ? "text-gray-500" : "text-gray-400"}`}>
+                  <div className={`mb-4 mt-1 text-sm leading-6 ${enabled ? "text-gray-600 dark:text-gray-300" : "text-gray-500 dark:text-gray-400"}`}>
                     {q.description}
                   </div>
                 )}
@@ -855,7 +853,7 @@ export default function PublicSurvey() {
                 {q.videoUrl && <video src={q.videoUrl} controls className="mb-4 max-h-64 w-full rounded-lg" />}
                 {q.audioUrl && <audio src={q.audioUrl} controls className="mb-4 w-full" />}
 
-                <div className={`text-base font-semibold leading-relaxed ${enabled ? "" : "text-gray-500"}`}>
+                <div id={`question-label-${q.id}`} className={`break-words text-base font-semibold leading-7 ${enabled ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"}`}>
                   {questionOffset + questionIndex + 1}. {q.questionText}
                   {q.isRequired && <span className="ml-1 text-red-500">*</span>}
                 </div>
@@ -876,8 +874,11 @@ export default function PublicSurvey() {
                     />
                     <input
                       type="text"
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] outline-none transition focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 disabled:cursor-not-allowed disabled:bg-gray-100"
-                      placeholder="Địa chỉ chi tiết (nếu có)"
+                      name={`question-${q.id}-address-detail`}
+                      aria-labelledby={`question-label-${q.id}`}
+                      aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
+                      className="min-h-11 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] transition-[border-color,box-shadow] placeholder:text-gray-400 focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/15 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:disabled:bg-gray-800"
+                      placeholder="Địa chỉ chi tiết (nếu có)…"
                       disabled={!enabled}
                       value={answers[q.id]?.addressDetail || ""}
                       onChange={(e) => updateAnswer(q.id, e.target.value, "addressDetail")}
@@ -897,14 +898,14 @@ export default function PublicSurvey() {
                                 key={o.id}
                                 className={`${hasImageOptions ? "overflow-hidden rounded-xl p-0" : "mt-2 items-start gap-3 rounded-lg px-3 py-3"} flex cursor-pointer border transition ${
                                   checked
-                                    ? "border-indigo-400 bg-indigo-50/70 ring-2 ring-indigo-600/10"
-                                    : "border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30"
-                                } ${!enabled ? "cursor-not-allowed bg-gray-50 hover:border-gray-200 hover:bg-gray-50" : ""}`}
+                                    ? "border-brand-400 bg-brand-50 ring-2 ring-brand-500/10 dark:border-brand-600 dark:bg-brand-950"
+                                    : "border-gray-200 bg-white hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-brand-700 dark:hover:bg-brand-950/50"
+                                } ${!enabled ? "cursor-not-allowed bg-gray-50 hover:border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-800" : ""}`}
                               >
                                 {hasImageOptions ? (
                                   <span className="flex min-w-0 flex-1 flex-col">
                                     {optionHasImages && (
-                                      <span className={`grid aspect-[4/3] overflow-hidden bg-gray-100 ${optionImageUrls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                                      <span className={`grid aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-800 ${optionImageUrls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
                                         {optionImageUrls.slice(0, 4).map((url, index) => (
                                           <span key={`${url}-${index}`} className="relative min-h-0 min-w-0 overflow-hidden">
                                             <img
@@ -926,12 +927,13 @@ export default function PublicSurvey() {
                                       <input
                                         type={q.questionTypeId === 1 ? "radio" : "checkbox"}
                                         name={`q-${q.id}`}
-                                        className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-indigo-600"
+                                        aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
+                                        className="mt-0.5 size-5 shrink-0 accent-brand-600"
                                         disabled={!enabled}
                                         checked={checked}
                                         onChange={() => handleOption(q.id, o.id, q.questionTypeId === 2)}
                                       />
-                                      <span className="min-w-0 text-[15px] leading-6 text-gray-800">{o.optionText}</span>
+                                      <span className="min-w-0 break-words text-[15px] leading-6 text-gray-800 dark:text-gray-200">{o.optionText}</span>
                                     </span>
                                   </span>
                                 ) : (
@@ -939,12 +941,13 @@ export default function PublicSurvey() {
                                     <input
                                       type={q.questionTypeId === 1 ? "radio" : "checkbox"}
                                       name={`q-${q.id}`}
-                                      className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-indigo-600"
+                                      aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
+                                      className="mt-0.5 size-5 shrink-0 accent-brand-600"
                                       disabled={!enabled}
                                       checked={checked}
                                       onChange={() => handleOption(q.id, o.id, q.questionTypeId === 2)}
                                     />
-                                    <span className="min-w-0 flex-1 text-[15px] leading-6 text-gray-800">{o.optionText}</span>
+                                    <span className="min-w-0 flex-1 break-words text-[15px] leading-6 text-gray-800 dark:text-gray-200">{o.optionText}</span>
                                   </>
                                 )}
                               </label>
@@ -956,8 +959,11 @@ export default function PublicSurvey() {
                       {q.questionTypeId === 3 && (
                         <input
                           type="text"
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] outline-none transition focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 disabled:cursor-not-allowed disabled:bg-gray-100"
-                          placeholder="Nhập câu trả lời..."
+                          name={`question-${q.id}-text`}
+                          aria-labelledby={`question-label-${q.id}`}
+                          aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
+                          className="min-h-11 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] transition-[border-color,box-shadow] placeholder:text-gray-400 focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/15 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:disabled:bg-gray-800"
+                          placeholder="Nhập câu trả lời…"
                           disabled={!enabled}
                           value={answers[q.id]?.answerText || ""}
                           onChange={(e) => updateAnswer(q.id, e.target.value, "answerText")}
@@ -968,8 +974,11 @@ export default function PublicSurvey() {
                         <input
                           type="text"
                           inputMode="decimal"
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] outline-none transition focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 disabled:cursor-not-allowed disabled:bg-gray-100"
-                          placeholder="Nhập điểm..."
+                          name={`question-${q.id}-number`}
+                          aria-labelledby={`question-label-${q.id}`}
+                          aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
+                          className="min-h-11 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] transition-[border-color,box-shadow] placeholder:text-gray-400 focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/15 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:disabled:bg-gray-800"
+                          placeholder="Nhập giá trị…"
                           disabled={!enabled}
                           value={answers[q.id]?.answerNumber ?? ""}
                           onChange={(e) => updateAnswer(q.id, e.target.value, "answerNumber")}
@@ -993,13 +1002,13 @@ export default function PublicSurvey() {
             );
           })}
 
-          <div className="mb-[50px] mt-6 flex items-center justify-between gap-4">
-            <div>
+          <div className="mb-12 mt-6 flex flex-col-reverse gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
+            <div className="min-w-0">
               {currentPage > 0 && (
                 <button
                   type="button"
                   onClick={() => goToPage(currentPage - 1)}
-                  className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-[15px] text-gray-700 transition hover:bg-gray-50"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 min-[420px]:w-auto"
                 >
                   ← Quay lại
                 </button>
@@ -1010,7 +1019,7 @@ export default function PublicSurvey() {
                 type="button"
                 data-validation-navigation="true"
                 onClick={handleNextPage}
-                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-[15px] text-white transition hover:bg-indigo-700"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-500 px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-600 min-[420px]:w-auto"
               >
                 Tiếp tục →
               </button>
@@ -1019,7 +1028,7 @@ export default function PublicSurvey() {
                 type="button"
                 data-validation-navigation="true"
                 onClick={handleSubmit}
-                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-[15px] text-white transition hover:bg-indigo-700"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-500 px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-600 min-[420px]:w-auto"
               >
                 Gửi khảo sát
               </button>

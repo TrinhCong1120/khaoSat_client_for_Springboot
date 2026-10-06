@@ -84,8 +84,28 @@ const getIcon = (iconName: string) => {
 const AdminSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
+  const hoverOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const expanded = isExpanded || isHovered || isMobileOpen;
+
+  const clearHoverTimers = useCallback(() => {
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
+  }, []);
+
+  const handleMouseEnter = useCallback(() => {
+    if (isExpanded || window.innerWidth < 1024) return;
+    if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
+    hoverOpenTimerRef.current = setTimeout(() => setIsHovered(true), 220);
+  }, [isExpanded, setIsHovered]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    hoverCloseTimerRef.current = setTimeout(() => setIsHovered(false), 280);
+  }, [setIsHovered]);
+
+  useEffect(() => clearHoverTimers, [clearHoverTimers]);
 
   // ======================
   // MENU MAPPING (Translated)
@@ -228,7 +248,7 @@ const AdminSidebar: React.FC = () => {
                 openSubmenu?.index === index
                   ? "menu-item-active"
                   : "menu-item-inactive"
-              } ${!expanded ? "md:justify-center" : "md:justify-start"}`}
+              } ${!expanded ? "lg:justify-center" : "lg:justify-start"}`}
             >
               <span
                 className={
@@ -262,7 +282,7 @@ const AdminSidebar: React.FC = () => {
                   isActive(nav.path)
                     ? "menu-item-active"
                     : "menu-item-inactive"
-                } ${!expanded ? "md:justify-center" : ""}`}
+                } ${!expanded ? "lg:justify-center" : ""}`}
               >
                 <span
                   className={
@@ -324,20 +344,20 @@ const AdminSidebar: React.FC = () => {
   // ======================
   return (
     <aside
-      className={`fixed z-50 mt-16 flex flex-col md:mt-0 top-0 px-3 left-0
+      className={`fixed left-0 top-0 z-50 flex h-screen flex-col px-3
         bg-white dark:bg-gray-900 dark:border-gray-800
-        h-screen transition-all duration-300 z-50 md:z-50 border-r border-gray-100/50
+        transition-[width,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] border-r border-gray-100/50
         scrollbar-none
         ${expanded ? "w-[264px]" : "w-[68px]"}
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-        md:translate-x-0`}
-      onMouseEnter={() => !isExpanded && setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+        lg:translate-x-0`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* LOGO SECTION */}
       <div
         className={`py-10 flex ${
-          !expanded ? "md:justify-center" : "justify-start px-2"
+          !expanded ? "lg:justify-center" : "justify-start px-2"
         }`}
       >
         <Link href="/admin">
@@ -361,12 +381,12 @@ const AdminSidebar: React.FC = () => {
                />
             </div>
           ) : (
-            <div className="w-10 h-10 bg-brand-500 rounded-2xl flex items-center justify-center shadow-lg shadow-brand-500/20">
+            <div className="flex size-10 items-center justify-center">
               <Image
                 src="/images/logo/logo-icon.svg"
                 alt="Logo"
-                width={24}
-                height={24}
+                width={36}
+                height={36}
               />
             </div>
           )}
