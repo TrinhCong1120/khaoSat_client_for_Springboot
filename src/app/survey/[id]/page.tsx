@@ -614,10 +614,32 @@ export default function PublicSurvey() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const scrollToFirstError = (questions: Array<{ id: number | string }>) => {
+    // Wait until React has rendered the validation messages before locating them.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const firstQuestionWithError = questions.find((q) =>
+          document.getElementById(`question-error-${q.id}`),
+        );
+        if (!firstQuestionWithError) return;
+
+        document.getElementById(`question-${firstQuestionWithError.id}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      });
+    });
+  };
+
   const handleNextPage = async () => {
     const pageQuestions = survey.pages[currentPage]?.questions || [];
     const result = await validateAnswersWithBackend(pageQuestions);
-    if (result?.valid) goToPage(currentPage + 1);
+    if (result?.valid) {
+      goToPage(currentPage + 1);
+      return;
+    }
+
+    scrollToFirstError(pageQuestions);
   };
 
   const handleSubmit = async () => {
