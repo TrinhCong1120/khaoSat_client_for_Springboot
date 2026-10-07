@@ -12,7 +12,7 @@ const getToken = () =>
   sessionStorage.getItem("token");
 
 interface Role {
-  id: number;
+  id: string;
   name: string;
 }
 

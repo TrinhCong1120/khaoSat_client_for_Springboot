@@ -3,13 +3,13 @@
 import BarChartOne from "@/components/charts/bar/BarChartOne";
 
 type QuestionItem = {
-  questionId?: number;
-  QuestionId?: number;
+  questionId?: string;
+  QuestionId?: string;
   question?: string;
   type?: string;
   totalAnswered?: number;
   options?: {
-    optionId: number;
+    optionId: string;
     text: string;
     count: number;
     percent: number;
@@ -49,10 +49,9 @@ function asAddressTopRows(q: QuestionItem, key: "province" | "ward") {
 }
 
 /** API summary đôi khi trả QuestionId (PascalCase) thay vì questionId */
-function getSummaryQuestionId(q: QuestionItem & Record<string, unknown>): number {
+function getSummaryQuestionId(q: QuestionItem & Record<string, unknown>): string {
   const raw = q.questionId ?? q.QuestionId;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : NaN;
+  return raw == null ? "" : String(raw);
 }
 
 /** Top text trong báo cáo: chỉ hiển thị N dòng có số lần cao nhất (5–7), không liệt kê hết */
@@ -90,13 +89,12 @@ export default function SummaryTab({
         const sqId = getSummaryQuestionId(q);
         return (
           <div
-            key={Number.isFinite(sqId) ? sqId : `row-${qi}`}
+            key={sqId || `row-${qi}`}
             className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-6 rounded-xl shadow"
           >
             <div className="flex flex-wrap justify-between gap-2 mb-2">
               <h3 className="font-semibold text-gray-800 dark:text-white">
-                {q.question ??
-                  `Câu #${Number.isFinite(sqId) ? sqId : qi + 1}`}
+                {q.question ?? `Câu ${qi + 1}`}
               </h3>
               <span className="text-xs text-gray-500 uppercase">
                 {summaryTypeCode(q.type) || "?"} · đã trả lời:{" "}

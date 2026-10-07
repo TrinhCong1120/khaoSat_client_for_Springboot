@@ -54,15 +54,7 @@ const DEFAULT: DashboardApiResponse = {
 
 export function normalizeDashboard(raw: unknown): DashboardApiResponse {
   if (!raw || typeof raw !== "object") return { ...DEFAULT, kpis: { ...DEFAULT.kpis } };
-  const source = raw as Partial<DashboardApiResponse> & {
-    openSurveys?: number;
-    openSurveysDelta?: number | null;
-    totalResponses?: number;
-    completionRate?: number;
-    activities?: Array<{ date?: string; label?: string; responses?: number; views?: number }>;
-    surveyStatuses?: Array<{ status?: string; label?: string; count?: number }>;
-    topSurveys?: Array<DashboardTopSurvey & { surveyId?: number }>;
-  };
+  const source = raw as any;
   const k = (source.kpis ?? {}) as Partial<DashboardKpis>;
   const legacyKpis: DashboardKpis = {
     openSurveys: Number(source.openSurveys) || 0,
@@ -103,20 +95,20 @@ export function normalizeDashboard(raw: unknown): DashboardApiResponse {
         kpis.satisfactionTrendDelta == null ? null : Number(kpis.satisfactionTrendDelta),
     },
     activityLast7Days: Array.isArray(activity)
-      ? activity.map((d) => ({
+      ? activity.map((d: any) => ({
           label: String(d.label ?? d.date ?? ""),
           responses: Number(d.responses) || 0,
           views: Number(d.views) || 0,
         }))
       : [],
     statusDistribution: Array.isArray(statuses)
-      ? statuses.map((s) => ({
+      ? statuses.map((s: any) => ({
           label: String(s.label ?? s.status ?? ""),
           count: Number(s.count) || 0,
         }))
       : [],
     topSurveysByCompletion: Array.isArray(topSurveys)
-      ? topSurveys.map((t) => ({
+      ? topSurveys.map((t: any) => ({
           title: String(t.title ?? ""),
           completionPercent: Math.min(100, Math.max(0, Number(t.completionPercent) || 0)),
           responseCount: Number(t.responseCount) || 0,

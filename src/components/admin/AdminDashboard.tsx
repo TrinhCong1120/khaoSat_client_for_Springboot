@@ -403,8 +403,7 @@ export default function AdminDashboard() {
           <p className="font-semibold">Chưa có dữ liệu hoặc API chưa sẵn sàng</p>
           <p className="mt-1 text-theme-xs opacity-90">{loadError}</p>
           <p className="mt-2 text-theme-xs text-error-700/90 dark:text-error-300/90">
-            Backend cần endpoint <strong>GET /survey/dashboard</strong> (Bearer). Xem cấu trúc JSON trong{" "}
-            <code className="rounded bg-white/60 px-1 dark:bg-black/30">client/src/lib/dashboard.ts</code>.
+            Kiểm tra quyền truy cập và endpoint <strong>GET /api/Dashboard</strong>, rồi thử lại.
           </p>
         </div>
       )}

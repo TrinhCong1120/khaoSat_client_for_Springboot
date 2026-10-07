@@ -15,12 +15,12 @@ export default function ConditionEditor({
   conditions,
   setConditions,
 }: any) {
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [form, setForm] = useState<any>({
     sourceQuestionId: "",
     targetQuestionId: "",
-    sourceValueIds: [] as number[],
+    sourceValueIds: [] as string[],
     sourceAddressProvinceTokens: [] as string[],
     sourceAddressWardTokens: [] as string[],
     action: "SHOW",
@@ -42,17 +42,17 @@ export default function ConditionEditor({
   // ======================
   // HELPERS
   // ======================
-  const getQuestionText = (id: number) => {
+  const getQuestionText = (id: string) => {
     return allQuestions.find((q: any) => q.id === id)?.questionText || `Q${id}`;
   };
 
-  const getOptionText = (questionId: number, value: string) => {
+  const getOptionText = (questionId: string, value: string) => {
     const q = allQuestions.find((q: any) => q.id === questionId);
     if (!q) return value;
     const ids = String(value)
       .split(",")
-      .map((x) => Number(x.trim()))
-      .filter((x) => Number.isFinite(x) && x > 0);
+      .map((x) => x.trim())
+      .filter(Boolean);
     if (ids.length === 0) return value;
     const labels = ids
       .map((id) =>
@@ -191,8 +191,8 @@ export default function ConditionEditor({
     }
 
     const payload = {
-      sourceQuestionId: Number(form.sourceQuestionId),
-      targetQuestionId: Number(form.targetQuestionId),
+      sourceQuestionId: String(form.sourceQuestionId),
+      targetQuestionId: String(form.targetQuestionId),
       sourceValue: toSourceValuePayload(),
       action: String(form.action || "").toUpperCase(),
     };
@@ -225,7 +225,7 @@ export default function ConditionEditor({
   // ======================
   // DELETE
   // ======================
-  const deleteCondition = async (id: number) => {
+  const deleteCondition = async (id: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa điều kiện này?")) return;
 
     await fetch(`${API_CONDITIONS}/${id}`, {
@@ -245,9 +245,7 @@ export default function ConditionEditor({
       .split(",")
       .map((x) => x.trim())
       .filter(Boolean);
-    const ids = rawTokens
-      .map((x) => Number(x))
-      .filter((x) => Number.isFinite(x) && x > 0);
+    const ids = rawTokens;
     const provinceNameSet = new Set(
       provinceOptions.map((p) => p.name.toLocaleLowerCase("vi"))
     );
@@ -272,11 +270,11 @@ export default function ConditionEditor({
     setAddressWardCode(null);
   };
 
-  const toggleSourceOption = (optionId: number) => {
+  const toggleSourceOption = (optionId: string) => {
     setForm((prev: any) => {
       const exists = prev.sourceValueIds.includes(optionId);
       const next = exists
-        ? prev.sourceValueIds.filter((x: number) => x !== optionId)
+        ? prev.sourceValueIds.filter((x: string) => x !== optionId)
         : [...prev.sourceValueIds, optionId];
       return {
         ...prev,
@@ -405,7 +403,7 @@ export default function ConditionEditor({
                 setAddressWardCode(null);
                 setForm({
                   ...form,
-                  sourceQuestionId: Number(e.target.value),
+                  sourceQuestionId: e.target.value,
                   sourceValueIds: [],
                   sourceAddressProvinceTokens: [],
                   sourceAddressWardTokens: [],
@@ -546,7 +544,7 @@ export default function ConditionEditor({
               onChange={(e) =>
                 setForm({
                   ...form,
-                  targetQuestionId: Number(e.target.value),
+                  targetQuestionId: e.target.value,
                 })
               }
             >

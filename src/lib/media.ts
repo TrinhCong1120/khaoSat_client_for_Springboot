@@ -4,9 +4,9 @@ export type MediaOwnerType = "SURVEY" | "PAGE" | "QUESTION" | "OPTION";
 export type MediaType = "IMAGE" | "VIDEO" | "AUDIO";
 
 export interface UploadedMedia {
-  id: number;
+  id: string;
   ownerType: MediaOwnerType;
-  ownerId: number;
+  ownerId: string;
   mediaType: MediaType;
   originalFilename: string;
   contentType: string;
@@ -40,7 +40,7 @@ export async function uploadMedia({
 }: {
   file: File;
   ownerType: MediaOwnerType;
-  ownerId: number;
+  ownerId: string;
   mediaType: MediaType;
   token: string;
 }) {

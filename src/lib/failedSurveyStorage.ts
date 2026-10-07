@@ -1,18 +1,5 @@
 import { API_FAILED_SURVEYS } from "@/lib/api";
 
-export type FailedSurveyRecord = {
-  id: string;
-  fileName: string;
-  createdAt: string;
-  surveyId?: number | string | null;
-  surveyTitle?: string | null;
-  statusCode?: number | null;
-  statusText?: string | null;
-  message?: string | null;
-  url?: string | null;
-  payload?: unknown;
-};
-
 export type FailedSurveyFileItem = {
   fileName: string;
   fileSize: number;
@@ -26,38 +13,6 @@ const getToken = () =>
 const authHeaders = (): HeadersInit => {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
-export const persistFailedSurveyRecord = async (
-  record: Omit<FailedSurveyRecord, "id" | "fileName" | "createdAt">
-) => {
-  const createdAt = new Date().toISOString();
-  const fileName = `failed_${new Date()
-    .toISOString()
-    .slice(0, 10)
-    .replace(/-/g, "")}_${Date.now()}.json`;
-
-  const entry: FailedSurveyRecord = {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    fileName,
-    createdAt,
-    ...record,
-  };
-
-  const res = await fetch(API_FAILED_SURVEYS, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(),
-    },
-    body: JSON.stringify(entry),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Không lưu được file lỗi lên public (${res.status})`);
-  }
-
-  return await res.json();
 };
 
 export const listFailedSurveyFiles = async (): Promise<FailedSurveyFileItem[]> => {

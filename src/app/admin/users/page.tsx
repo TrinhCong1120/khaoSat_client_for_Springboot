@@ -12,10 +12,11 @@ import Pagination from "@/components/ui/pagination/Pagination";
 // TYPE
 // ======================
 export interface User {
-  id: number;
+  id: string;
   username: string;
+  email: string;
   isActive: boolean;
-  roleIds?: number[];
+  roleIds?: string[];
   roles?: string[];
 }
 
@@ -114,7 +115,7 @@ export default function UsersPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (userId: number) => {
+  const handleDelete = async (userId: string) => {
     if (!confirm("Xác nhận xóa người dùng này?")) return;
 
     try {

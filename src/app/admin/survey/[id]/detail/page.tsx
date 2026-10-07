@@ -141,7 +141,7 @@ export default function ResponseDetailPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-                Chi tiết phản hồi #{data.responseId}
+                Chi tiết phản hồi
               </h1>
               <div className="text-sm text-gray-500 mt-1">
                 {data.submittedAt

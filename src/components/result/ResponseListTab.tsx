@@ -58,8 +58,9 @@ export default function ResponseListTab({ surveyId }: any) {
           {/* HEAD */}
           <thead className="bg-gray-50/50 dark:bg-gray-800/50 text-[11px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">
             <tr className="border-b border-gray-100 dark:border-gray-800">
-              <th className="px-6 py-4">#</th>
+              <th className="px-6 py-4">STT</th>
               <th className="px-6 py-4">Thời gian</th>
+              {preview.length === 0 && <th className="px-6 py-4">Nội dung xem trước</th>}
 
               {preview.map((q: any, i: number) => (
                 <th key={i} className="px-6 py-4">
@@ -80,7 +81,7 @@ export default function ResponseListTab({ surveyId }: any) {
               >
                 {/* STT */}
                 <td className="px-6 py-4 text-xs text-gray-400 font-mono">
-                  #{i + 1}
+                  {i + 1}
                 </td>
 
                 {/* TIME */}
@@ -89,6 +90,7 @@ export default function ResponseListTab({ surveyId }: any) {
                     ? new Date(r.submittedAt).toLocaleString("vi-VN")
                     : "-"}
                 </td>
+                {preview.length === 0 && <td className="max-w-md truncate px-6 py-4 text-gray-700 dark:text-gray-300" title={r.preview || ""}>{r.preview || "—"}</td>}
 
                 {/* ANSWERS */}
                 {preview.map((col: any, idx: number) => (

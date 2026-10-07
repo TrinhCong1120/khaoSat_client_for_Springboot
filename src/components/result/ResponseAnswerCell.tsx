@@ -7,7 +7,7 @@ type ColumnMeta = {
   type?: string;
   questionTypeCode?: string;
   question?: string;
-  questionId?: number;
+  questionId?: string;
   questionTypeId?: number;
 };
 

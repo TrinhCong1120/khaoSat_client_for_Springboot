@@ -1,14 +1,32 @@
 export type AnswerPayload = {
-  questionId: number;
+  questionId: string;
   answerText?: string | null;
-  answerNumber?: string | null;
+  answerNumber?: number | null;
   answerDate?: string | null;
-  optionIds?: number[] | null;
+  optionIds?: string[] | null;
   provinceCode?: string | null;
   wardCode?: string | null;
   province?: string | null;
   ward?: string | null;
   addressDetail?: string | null;
+};
+
+type SurveyQuestion = {
+  id: string;
+  questionTypeCode?: string | null;
+};
+
+type RawAnswer = {
+  questionId?: string;
+  answerText?: unknown;
+  answerNumber?: unknown;
+  answerDate?: unknown;
+  optionIds?: unknown[];
+  provinceCode?: unknown;
+  wardCode?: unknown;
+  province?: unknown;
+  ward?: unknown;
+  addressDetail?: unknown;
 };
 
 export function getQuestionTypeCode(q: { questionTypeCode?: string | null }) {
@@ -17,27 +35,27 @@ export function getQuestionTypeCode(q: { questionTypeCode?: string | null }) {
 
 /** Chuẩn hóa mảng answers trước khi POST PublicSurvey submit */
 export function buildPublicSurveySubmitAnswers(
-  survey: { pages: { questions?: any[] }[] },
-  answers: Record<number, any>
+  survey: { pages: { questions?: SurveyQuestion[] }[] },
+  answers: Record<string, RawAnswer | null | undefined>
 ): AnswerPayload[] {
-  const questionById = new Map<number, any>();
+  const questionById = new Map<string, SurveyQuestion>();
   for (const p of survey.pages || []) {
     for (const q of p.questions || []) {
-      questionById.set(q.id, q);
+      questionById.set(String(q.id), q);
     }
   }
 
   const out: AnswerPayload[] = [];
 
-  for (const raw of Object.values(answers) as any[]) {
+  for (const raw of Object.values(answers)) {
     if (raw == null || raw.questionId == null) continue;
-    const q = questionById.get(raw.questionId);
+    const questionId = String(raw.questionId);
+    const q = questionById.get(questionId);
     if (!q) continue;
 
     const typeCode = getQuestionTypeCode(q);
-    const typeId = Number(q.questionTypeId);
 
-    if (typeCode === "ADDRESS" || typeId === 6) {
+    if (typeCode === "ADDRESS") {
       const province = String(raw.province ?? "").trim();
       const ward = String(raw.ward ?? "").trim();
       const provinceOk = province.length > 0;
@@ -46,7 +64,9 @@ export function buildPublicSurveySubmitAnswers(
       if (!provinceOk || !wardOk) continue;
 
       out.push({
-        questionId: raw.questionId,
+        questionId,
+        provinceCode: String(raw.provinceCode ?? "").trim() || null,
+        wardCode: String(raw.wardCode ?? "").trim() || null,
         province,
         ward,
         addressDetail: String(raw.addressDetail ?? "").trim() || null,
@@ -54,41 +74,41 @@ export function buildPublicSurveySubmitAnswers(
       continue;
     }
 
-    if (typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE" || typeId === 1 || typeId === 2) {
-      const optionIds = Array.from(
-        new Set(
+    if (typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE") {
+      const optionIds: string[] = Array.from(
+        new Set<string>(
           (Array.isArray(raw.optionIds) ? raw.optionIds : [])
-            .map(Number)
-            .filter((optionId) => Number.isInteger(optionId) && optionId > 0)
+            .map(String)
+            .filter(Boolean)
         )
       );
       if (optionIds.length === 0) continue;
-      out.push({ questionId: raw.questionId, optionIds });
+      out.push({ questionId, optionIds });
       continue;
     }
 
-    if (typeCode === "TEXT" || typeId === 3) {
+    if (typeCode === "TEXT") {
       const answerText = String(raw.answerText ?? "").trim();
       if (!answerText) continue;
-      out.push({ questionId: raw.questionId, answerText });
+      out.push({ questionId, answerText });
       continue;
     }
 
-    if (typeCode === "NUMBER" || typeId === 4) {
+    if (typeCode === "NUMBER") {
       const answerNumber = String(raw.answerNumber ?? "").trim();
       if (!answerNumber || !/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(answerNumber)) continue;
-      out.push({ questionId: raw.questionId, answerNumber });
+      out.push({ questionId, answerNumber: Number(answerNumber) });
       continue;
     }
 
-    if (typeCode === "DATE" || typeId === 5) {
+    if (typeCode === "DATE") {
       const rawDate = String(raw.answerDate ?? "").trim();
       if (!rawDate) continue;
 
       const answerDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
         ? `${rawDate}T00:00:00`
         : rawDate;
-      out.push({ questionId: raw.questionId, answerDate });
+      out.push({ questionId, answerDate });
     }
   }
 

@@ -13,16 +13,19 @@ import {
   FiPlus,
   FiSave,
   FiTrash2,
+  FiUsers,
   FiX,
 } from "react-icons/fi";
 import QuestionEditor from "@/components/surveys/QuestionEditor";
 import ConditionEditor from "@/components/surveys/ConditionEditor";
 import MediaUploader from "@/components/surveys/MediaUploader";
+import SurveyAccessModal from "@/components/surveys/SurveyAccessModal";
 import ApiNotFound from "@/components/common/ApiNotFound";
 import { API_PAGES, API_SURVEYS } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 
 type SurveyPage = {
-  id: number;
+  id: string;
   title: string;
   description?: string;
   orderIndex: number;
@@ -31,7 +34,7 @@ type SurveyPage = {
 };
 
 type Survey = {
-  id: number;
+  id: string;
   title: string;
   description?: string;
   pages: SurveyPage[];
@@ -68,7 +71,8 @@ export default function EditSurvey() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
   const [showConditions, setShowConditions] = useState(false);
-  const [expandedPageIds, setExpandedPageIds] = useState<Record<number, boolean>>({});
+  const [showAccess, setShowAccess] = useState(false);
+  const [expandedPageIds, setExpandedPageIds] = useState<Record<string, boolean>>({});
   const [activeNavId, setActiveNavId] = useState("survey-info");
   const [desktopQuickNavOpen, setDesktopQuickNavOpen] = useState(false);
   const [desktopQuickNavHovered, setDesktopQuickNavHovered] = useState(false);
@@ -76,6 +80,7 @@ export default function EditSurvey() {
   const [mobileQuickNavOpen, setMobileQuickNavOpen] = useState(false);
   const desktopQuickNavRailRef = useRef<HTMLDivElement>(null);
   const desktopQuickNavHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentUser = getUser();
 
   useEffect(() => () => {
     if (desktopQuickNavHoverTimeoutRef.current) clearTimeout(desktopQuickNavHoverTimeoutRef.current);
@@ -197,7 +202,7 @@ export default function EditSurvey() {
     }
   };
 
-  const setPageOrder = (pageId: number, nextOrderIndex: number) => {
+  const setPageOrder = (pageId: string, nextOrderIndex: number) => {
     const fromIndex = pagesOrdered.findIndex((page) => page.id === pageId);
     if (fromIndex < 0) return;
 
@@ -257,7 +262,7 @@ export default function EditSurvey() {
     if (!response.ok) setError(`Không lưu được trang (${response.status})`);
   };
 
-  const deletePage = async (pageId: number) => {
+  const deletePage = async (pageId: string) => {
     if (!window.confirm("Xóa trang này cùng toàn bộ câu hỏi bên trong?")) return;
     const response = await fetch(`${API_PAGES}/${pageId}`, {
       method: "DELETE",
@@ -270,7 +275,7 @@ export default function EditSurvey() {
     await reloadSurvey();
   };
 
-  const patchPage = (pageId: number, patch: Partial<SurveyPage>) => {
+  const patchPage = (pageId: string, patch: Partial<SurveyPage>) => {
     setSurvey((current) => current && ({
       ...current,
       pages: current.pages.map((page) => page.id === pageId ? { ...page, ...patch } : page),
@@ -286,7 +291,7 @@ export default function EditSurvey() {
     setMobileQuickNavOpen(false);
   };
 
-  const togglePageNav = (pageId: number) => {
+  const togglePageNav = (pageId: string) => {
     setExpandedPageIds((current) => ({ ...current, [pageId]: !current[pageId] }));
   };
 
@@ -456,12 +461,21 @@ export default function EditSurvey() {
             <h1 className="mt-1 truncate text-xl font-semibold text-gray-900 dark:text-white">{survey.title || "Khảo sát chưa có tên"}</h1>
           </div>
         </div>
-        <button type="button" onClick={() => void updateSurvey()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60">
-          <FiSave size={16} /> {saving ? "Đang lưu…" : "Lưu thông tin"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {(currentUser?.permissions.includes("survey_update_all") || String(currentUser?.id) === String(survey.creatorUserId)) && (
+            <button type="button" onClick={() => setShowAccess(true)} className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-500/30 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-violet-500/10">
+              <FiUsers size={16} /> Quyền truy cập
+            </button>
+          )}
+          <button type="button" onClick={() => void updateSurvey()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60">
+            <FiSave size={16} /> {saving ? "Đang lưu…" : "Lưu thông tin"}
+          </button>
+        </div>
       </header>
       <QuickNav mobile />
       <QuickNav />
+
+      {showAccess && <SurveyAccessModal survey={survey} onClose={() => setShowAccess(false)} onChanged={reloadSurvey} />}
 
       <div className="min-w-0 md:pr-16">
       {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
@@ -479,7 +493,7 @@ export default function EditSurvey() {
         </div>
         <aside className="border-t border-gray-100 pt-4 dark:border-gray-800">
           <p className="mb-2 text-xs font-medium text-gray-500">Ảnh bìa khảo sát</p>
-          <MediaUploader compact ownerType="SURVEY" ownerId={Number(survey.id)} values={survey} onChange={(field, value) => setSurvey((current) => current && ({ ...current, [field]: value }))} />
+          <MediaUploader compact ownerType="SURVEY" ownerId={survey.id} values={survey} onChange={(field, value) => setSurvey((current) => current && ({ ...current, [field]: value }))} />
         </aside>
       </section>
 
@@ -524,7 +538,7 @@ export default function EditSurvey() {
                 </label>
                 <div className="rounded-lg border border-brand-200/70 bg-brand-50/80 p-3 dark:border-brand-500/20 dark:bg-brand-500/10">
                   <p className="mb-2 text-xs font-medium text-gray-500">Media trang</p>
-                  <MediaUploader compact ownerType="PAGE" ownerId={Number(page.id)} values={page} onChange={(field, value) => patchPage(page.id, { [field]: value })} />
+                  <MediaUploader compact ownerType="PAGE" ownerId={page.id} values={page} onChange={(field, value) => patchPage(page.id, { [field]: value })} />
                 </div>
               </div>
             </div>

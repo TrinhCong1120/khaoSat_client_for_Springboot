@@ -10,23 +10,30 @@ import {
   FiLock,
   FiX,
   FiCopy,
+  FiUsers,
 } from "react-icons/fi";
 import { QRCodeSVG } from "qrcode.react";
 import { API_PUBLIC_SURVEYS } from "@/lib/api";
 
 type Survey = {
-  id: number;
+  id: string;
   title: string;
   description: string;
   isActive?: boolean;
+  creatorUser?: string | null;
+  creatorUserId?: string | null;
 };
 
 type Props = {
   surveys: Survey[];
-  togglingId: number | null;
-  onEdit: (id: number) => void;
-  onDelete: (id: number) => void;
-  onToggleActive: (id: number, nextActive: boolean) => void | Promise<void>;
+  togglingId: string | null;
+  onEdit: (id: string) => void;
+  onDelete: (survey: Survey) => void;
+  onToggleActive: (id: string, nextActive: boolean) => void | Promise<void>;
+  onManageAccess?: (survey: Survey) => void;
+  canManageAccess?: (survey: Survey) => boolean;
+  canEdit?: boolean;
+  canDelete?: (survey: Survey) => boolean;
 };
 
 export default function SurveyTable({
@@ -35,6 +42,10 @@ export default function SurveyTable({
   onEdit,
   onDelete,
   onToggleActive,
+  onManageAccess,
+  canManageAccess,
+  canEdit = true,
+  canDelete,
 }: Props) {
   const [linkSurvey, setLinkSurvey] = React.useState<Survey | null>(null);
   const [copiedLink, setCopiedLink] = React.useState<string | null>(null);
@@ -74,13 +85,16 @@ export default function SurveyTable({
           {/* HEADER */}
           <thead className="bg-gray-50 text-xs font-semibold text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
             <tr className="border-b border-gray-100 dark:border-gray-800">
-              <th className="px-3 py-4 align-middle">
-                <span className="relative top-0.5">ID</span>
+              <th className="whitespace-nowrap px-3 py-4 align-middle">
+                <span className="relative top-0.5">STT</span>
               </th>
               <th className="px-6 py-4">Tiêu đề</th>
               <th className="px-6 py-4">Mô tả</th>
               <th className="px-6 py-4">Trạng thái</th>
-              <th className="px-6 py-4">API Public</th>
+              <th className="px-6 py-4">
+                <span className="whitespace-nowrap">API</span>{" "}
+                <span className="whitespace-nowrap">Public</span>
+              </th>
               <th className="px-6 py-4 text-right">Hành động</th>
             </tr>
           </thead>
@@ -94,7 +108,7 @@ export default function SurveyTable({
                 </td>
               </tr>
             ) : (
-              surveys.map((s) => {
+              surveys.map((s, index) => {
                 const open = s.isActive !== false;
                 const busy = togglingId === s.id;
                 return (
@@ -102,9 +116,9 @@ export default function SurveyTable({
                   key={s.id}
                   className="group hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors"
                 >
-                  {/* ID */}
+                  {/* STT */}
                   <td className="px-2 py-4 font-mono text-xs text-gray-400 sm:px-3">
-                    #{s.id}
+                    {index + 1}
                   </td>
 
                   {/* TITLE */}
@@ -123,7 +137,7 @@ export default function SurveyTable({
 
                   {/* OPEN / CLOSE */}
                   <td className="px-2 py-4 sm:px-3">
-                    <button
+                    {canEdit && <button
                       type="button"
                       disabled={busy}
                       onClick={() => onToggleActive(s.id, !open)}
@@ -142,7 +156,7 @@ export default function SurveyTable({
                         <FiLock className="size-3.5 shrink-0" />
                       )}
                       {busy ? "…" : open ? "Đang mở" : "Đã đóng"}
-                    </button>
+                    </button>}
                   </td>
 
                   {/* API PUBLIC */}
@@ -160,6 +174,7 @@ export default function SurveyTable({
                   {/* ACTIONS */}
                   <td className="whitespace-nowrap px-1 py-4 text-right sm:px-2">
                     <div className="flex justify-end gap-0.5">
+                      {onManageAccess && canManageAccess?.(s) && <button type="button" onClick={() => onManageAccess(s)} title="Quản lý quyền truy cập" className="rounded-xl p-1.5 text-violet-500 transition-all hover:bg-violet-50 dark:hover:bg-violet-500/10"><FiUsers size={18} /></button>}
                       
                       {/* RESULT */}
                       <a
@@ -171,22 +186,22 @@ export default function SurveyTable({
                       </a>
 
                       {/* EDIT */}
-                      <button
+                      {canEdit && <button
                         onClick={() => onEdit(s.id)}
                         title="Chỉnh sửa"
                         className="p-1.5 text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-xl transition-all"
                       >
                         <FiEdit3 size={18} />
-                      </button>
+                      </button>}
 
                       {/* DELETE */}
-                      <button
-                        onClick={() => onDelete(s.id)}
+                      {(!canDelete || canDelete(s)) && <button
+                        onClick={() => onDelete(s)}
                         title="Xóa"
                         className="p-1.5 text-error-500 hover:bg-error-50 dark:hover:bg-error-500/10 rounded-xl transition-all"
                       >
                         <FiTrash2 size={18} />
-                      </button>
+                      </button>}
                     </div>
                   </td>
                 </tr>
@@ -197,8 +212,8 @@ export default function SurveyTable({
         </table>
       </div>
       <div className="divide-y divide-gray-100 text-gray-500 dark:divide-gray-800 dark:text-gray-400 md:hidden">
-        {surveys.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-400">Không tìm thấy khảo sát nào.</div> : surveys.map((s) => { const open = s.isActive !== false; const busy = togglingId === s.id; return (
-          <article key={s.id} className="space-y-4 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{s.title}</p><p className="mt-1 font-mono text-xs text-gray-400">#{s.id}</p></div><button type="button" disabled={busy} onClick={() => onToggleActive(s.id, !open)} className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${open ? "border-success-200 bg-success-50 text-success-700" : "border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>{busy ? "…" : open ? "Đang mở" : "Đã đóng"}</button></div><p className="line-clamp-2 text-xs">{s.description || "—"}</p><div className="flex items-center justify-between gap-3"><button type="button" onClick={() => setLinkSurvey(s)} className="text-xs font-bold text-brand-500">Xem link</button><div className="flex gap-1.5"><a href={`/admin/survey/${s.id}/result`} aria-label="Xem kết quả" className="rounded-xl p-2 text-success-500 hover:bg-success-50"><FiBarChart2 size={18} /></a><button onClick={() => onEdit(s.id)} aria-label="Chỉnh sửa" className="rounded-xl p-2 text-brand-500 hover:bg-brand-50"><FiEdit3 size={18} /></button><button onClick={() => onDelete(s.id)} aria-label="Xóa" className="rounded-xl p-2 text-error-500 hover:bg-error-50"><FiTrash2 size={18} /></button></div></div></article>
+        {surveys.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-400">Không tìm thấy khảo sát nào.</div> : surveys.map((s, index) => { const open = s.isActive !== false; const busy = togglingId === s.id; return (
+          <article key={s.id} className="space-y-4 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{s.title}</p><p className="mt-1 text-xs text-gray-400">STT: {index + 1}</p></div>{canEdit ? <button type="button" disabled={busy} onClick={() => onToggleActive(s.id, !open)} className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${open ? "border-success-200 bg-success-50 text-success-700" : "border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>{busy ? "…" : open ? "Đang mở" : "Đã đóng"}</button> : <span className="text-xs text-gray-500">{open ? "Đang mở" : "Đã đóng"}</span>}</div><p className="line-clamp-2 text-xs">{s.description || "—"}</p><div className="flex items-center justify-between gap-3"><button type="button" onClick={() => setLinkSurvey(s)} className="text-xs font-bold text-brand-500">Xem link</button><div className="flex gap-1.5">{onManageAccess && canManageAccess?.(s) && <button type="button" onClick={() => onManageAccess(s)} aria-label="Quản lý quyền truy cập" className="rounded-xl p-2 text-violet-500 hover:bg-violet-50"><FiUsers size={18} /></button>}<a href={`/admin/survey/${s.id}/result`} aria-label="Xem kết quả" className="rounded-xl p-2 text-success-500 hover:bg-success-50"><FiBarChart2 size={18} /></a>{canEdit && <button onClick={() => onEdit(s.id)} aria-label="Chỉnh sửa" className="rounded-xl p-2 text-brand-500 hover:bg-brand-50"><FiEdit3 size={18} /></button>}{(!canDelete || canDelete(s)) && <button onClick={() => onDelete(s)} aria-label="Xóa" className="rounded-xl p-2 text-error-500 hover:bg-error-50"><FiTrash2 size={18} /></button>}</div></div></article>
         ); })}
       </div>
       {linkSurvey && (

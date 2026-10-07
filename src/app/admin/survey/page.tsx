@@ -9,13 +9,18 @@ import SurveyTable from "@/components/surveys/SurveyTable";
 import SurveyFormModal from "@/components/surveys/SurveyFormModal";
 import { API_SURVEYS } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
+import SurveyAccessModal from "@/components/surveys/SurveyAccessModal";
+import SurveyNameConfirmationModal from "@/components/surveys/SurveyNameConfirmationModal";
+import { getUser } from "@/lib/auth";
 
 export interface Survey {
-  id: number;
+  id: string;
   title: string;
   description: string;
   /** Không có từ API cũ → coi như đang mở */
   isActive?: boolean;
+  creatorUser?: string | null;
+  creatorUserId?: string | null;
 }
 
 const getToken = () =>
@@ -26,12 +31,29 @@ export default function SurveyPage() {
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [accessSurvey, setAccessSurvey] = useState<Survey | null>(null);
+  const [deleteSurvey, setDeleteSurvey] = useState<Survey | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const pageSize = 10;
   const paginatedSurveys = surveys.slice((page - 1) * pageSize, page * pageSize);
 
   const router = useRouter();
+  const currentUser = getUser();
+  const canManageAccess = (survey: Survey) =>
+    Boolean(currentUser && (
+      currentUser.permissions.includes("survey_update_all") ||
+      String(survey.creatorUserId) === String(currentUser.id)
+    ));
+  const canEdit = Boolean(currentUser?.permissions.some((permission) =>
+    permission === "survey_update" || permission === "survey_update_all"));
+  const canDelete = (survey: Survey) => Boolean(
+    currentUser?.permissions.includes("survey_delete") &&
+    (currentUser.permissions.includes("survey_update_all") ||
+      String(survey.creatorUserId) === String(currentUser.id))
+  );
   const fetchSurveys = useCallback(async () => {
     try {
       setLoading(true);
@@ -61,21 +83,30 @@ export default function SurveyPage() {
     fetchSurveys();
   }, [fetchSurveys]);
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Xác nhận xóa khảo sát này?")) return;
+  const handleDelete = async (survey: Survey) => {
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const response = await fetch(`${API_SURVEYS}/${survey.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!response.ok) {
+        const message = await response.text().catch(() => "");
+        throw new Error(message || `Không xóa được khảo sát (${response.status})`);
+      }
 
-    await fetch(`${API_SURVEYS}/${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${getToken()}`,
-      },
-    });
-
-    setSurveys((prev) => prev.filter((s) => s.id !== id));
-    setPage((current) => Math.min(current, Math.max(1, Math.ceil((surveys.length - 1) / pageSize))));
+      setSurveys((prev) => prev.filter((item) => item.id !== survey.id));
+      setPage((current) => Math.min(current, Math.max(1, Math.ceil((surveys.length - 1) / pageSize))));
+      setDeleteSurvey(null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Không xóa được khảo sát.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
-  const handleToggleActive = async (id: number, nextActive: boolean) => {
+  const handleToggleActive = async (id: string, nextActive: boolean) => {
     const token = getToken();
     if (!token) {
       alert("Phiên đăng nhập hết hạn.");
@@ -126,9 +157,9 @@ export default function SurveyPage() {
           >
             Phản hồi lỗi
           </Link>
-          <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
+          {currentUser?.permissions.includes("survey_create") && <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
             <PlusIcon className="w-5 h-5" /> Tạo khảo sát
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -143,8 +174,12 @@ export default function SurveyPage() {
               surveys={paginatedSurveys}
               togglingId={togglingId}
               onEdit={(id) => router.push(`/admin/survey/${id}/edit`)}
-              onDelete={handleDelete}
+              onDelete={(survey) => { setDeleteError(""); setDeleteSurvey(survey); }}
               onToggleActive={handleToggleActive}
+              onManageAccess={(survey) => canManageAccess(survey) && setAccessSurvey(survey)}
+              canManageAccess={canManageAccess}
+              canEdit={canEdit}
+              canDelete={canDelete}
             />
             <Pagination page={page} pageSize={pageSize} total={surveys.length} onPageChange={setPage} />
           </>
@@ -155,6 +190,26 @@ export default function SurveyPage() {
         <SurveyFormModal
           onClose={() => setIsModalOpen(false)}
           onSubmitSuccess={fetchSurveys}
+        />
+      )}
+      {accessSurvey && (
+        <SurveyAccessModal
+          survey={accessSurvey}
+          onClose={() => setAccessSurvey(null)}
+          onChanged={fetchSurveys}
+        />
+      )}
+      {deleteSurvey && (
+        <SurveyNameConfirmationModal
+          heading="Xác nhận xóa khảo sát"
+          actionText="xóa khảo sát"
+          surveyTitle={deleteSurvey.title}
+          confirmLabel="Xóa khảo sát"
+          busy={deleting}
+          error={deleteError}
+          danger
+          onCancel={() => { setDeleteSurvey(null); setDeleteError(""); }}
+          onConfirm={() => handleDelete(deleteSurvey)}
         />
       )}
     </div>

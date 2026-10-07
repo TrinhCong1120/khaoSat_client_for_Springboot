@@ -19,19 +19,33 @@ type RuleDefinition = {
   parameters?: any[];
 };
 
+type QuestionOption = {
+  id: string;
+  optionText?: string;
+};
+
+const OPTION_LIST_RULES = [
+  "ALLOWED_OPTIONS",
+  "DISALLOWED_OPTIONS",
+  "REQUIRED_OPTIONS",
+  "AT_MOST_ONE_OF",
+  "EXCLUSIVE_OPTIONS",
+  "MUTUALLY_EXCLUSIVE",
+];
+
 const RULES: Record<number, RuleDefinition[]> = {
   1: [
-    { type: "ALLOWED_OPTIONS", label: "Chỉ cho phép lựa chọn", valueKind: "list", placeholder: "ID option, ví dụ: 101,102" },
-    { type: "DISALLOWED_OPTIONS", label: "Cấm lựa chọn", valueKind: "list", placeholder: "ID option, ví dụ: 104" },
-    { type: "FIXED_OPTION", label: "Khóa một lựa chọn", valueKind: "number", placeholder: "ID option" },
+    { type: "ALLOWED_OPTIONS", label: "Chỉ cho phép lựa chọn", valueKind: "list", placeholder: "STT lựa chọn, ví dụ: 1,2" },
+    { type: "DISALLOWED_OPTIONS", label: "Cấm lựa chọn", valueKind: "list", placeholder: "STT lựa chọn, ví dụ: 3" },
+    { type: "FIXED_OPTION", label: "Khóa một lựa chọn", valueKind: "number", placeholder: "STT lựa chọn" },
   ],
   2: [
     { type: "MIN_SELECTIONS", label: "Số lựa chọn tối thiểu", valueKind: "number" },
     { type: "MAX_SELECTIONS", label: "Số lựa chọn tối đa", valueKind: "number" },
-    { type: "ALLOWED_OPTIONS", label: "Chỉ cho phép lựa chọn", valueKind: "list", placeholder: "ID option, ví dụ: 201,202" },
-    { type: "DISALLOWED_OPTIONS", label: "Cấm lựa chọn", valueKind: "list", placeholder: "ID option, ví dụ: 205" },
-    { type: "REQUIRED_OPTIONS", label: "Lựa chọn bắt buộc", valueKind: "list", placeholder: "ID option, ví dụ: 201" },
-    { type: "MUTUALLY_EXCLUSIVE", label: "Lựa chọn loại trừ", valueKind: "list", placeholder: "ID option, ví dụ: 205" },
+    { type: "ALLOWED_OPTIONS", label: "Chỉ cho phép lựa chọn", valueKind: "list", placeholder: "STT lựa chọn, ví dụ: 1,2" },
+    { type: "DISALLOWED_OPTIONS", label: "Cấm lựa chọn", valueKind: "list", placeholder: "STT lựa chọn, ví dụ: 3" },
+    { type: "REQUIRED_OPTIONS", label: "Lựa chọn bắt buộc", valueKind: "list", placeholder: "STT lựa chọn, ví dụ: 1" },
+    { type: "MUTUALLY_EXCLUSIVE", label: "Lựa chọn loại trừ", valueKind: "list", placeholder: "STT lựa chọn, ví dụ: 3" },
   ],
   3: [
     { type: "MIN_LENGTH", label: "Độ dài tối thiểu", valueKind: "number" },
@@ -87,28 +101,46 @@ const RULES: Record<number, RuleDefinition[]> = {
   ],
 };
 
-function definitionFor(typeId: number, type: string) {
-  return RULES[typeId]?.find((rule) => rule.type === type);
+function definitionFor(typeId: string, type: string) {
+  return RULES[Number(typeId)]?.find((rule) => rule.type === type);
 }
 
 function localizedDefinitionFor(type: string) {
   return Object.values(RULES).flat().find((rule) => rule.type === type);
 }
 
-function displayValue(rule: ValidationRule, definition?: RuleDefinition) {
+function optionIdToSequence(optionId: unknown, options: QuestionOption[]) {
+  const index = options.findIndex((option) => String(option.id) === String(optionId));
+  return index >= 0 ? index + 1 : optionId;
+}
+
+function sequenceToOptionId(sequence: unknown, options: QuestionOption[]) {
+  const index = Number(sequence) - 1;
+  return Number.isInteger(index) && index >= 0 && index < options.length
+    ? String(options[index].id)
+    : null;
+}
+
+function displayValue(rule: ValidationRule, definition: RuleDefinition | undefined, options: QuestionOption[]) {
   if (!definition) return typeof rule.value === "string" ? rule.value : JSON.stringify(rule.value ?? "");
   if (definition.valueKind === "boolean") return Boolean(rule.value);
   if (definition.valueKind === "number") {
     if (typeof rule.value === "object" && rule.value !== null) {
       const value = rule.value as any;
-      return String(value.optionId ?? value.value ?? "");
+      const rawValue = value.optionId ?? value.value ?? "";
+      return definition.type === "FIXED_OPTION"
+        ? String(optionIdToSequence(rawValue, options))
+        : String(rawValue);
     }
     return rule.value == null ? "" : String(rule.value);
   }
   if (definition.valueKind === "list") {
     const value = rule.value as any;
     const list = Array.isArray(value) ? value : value?.optionIds ?? value?.values ?? value?.dates ?? value?.weekdays ?? value?.provinceCodes ?? value?.wardCodes;
-    return Array.isArray(list) ? list.join(",") : String(value ?? "");
+    if (!Array.isArray(list)) return String(value ?? "");
+    return OPTION_LIST_RULES.includes(definition.type)
+      ? list.map((item) => optionIdToSequence(item, options)).join(",")
+      : list.join(",");
   }
   if (typeof rule.value === "object") {
     const value = rule.value as any;
@@ -117,16 +149,18 @@ function displayValue(rule: ValidationRule, definition?: RuleDefinition) {
   return String(rule.value ?? "");
 }
 
-function buildValue(definition: RuleDefinition, raw: string | boolean) {
+function buildValue(definition: RuleDefinition, raw: string | boolean, options: QuestionOption[]) {
   if (definition.valueKind === "boolean") return Boolean(raw);
   if (definition.valueKind === "number") {
     const value = raw === "" ? "" : Number(raw);
-    if (definition.type === "FIXED_OPTION") return { optionId: value };
+    if (definition.type === "FIXED_OPTION") return { optionId: sequenceToOptionId(value, options) };
     return value;
   }
   if (definition.valueKind === "list") {
     const values = String(raw).split(",").map((item) => item.trim()).filter(Boolean);
-    if (["ALLOWED_OPTIONS", "DISALLOWED_OPTIONS", "REQUIRED_OPTIONS", "MUTUALLY_EXCLUSIVE"].includes(definition.type)) return { optionIds: values.map(Number).filter(Number.isFinite) };
+    if (OPTION_LIST_RULES.includes(definition.type)) {
+      return { optionIds: values.map((item) => sequenceToOptionId(item, options)).filter((item): item is string => item != null) };
+    }
     if (definition.type === "NOT_CONTAIN") return { values };
     if (definition.type === "ALLOWED_WEEKDAYS") return { weekdays: values.map(Number).filter(Number.isFinite) };
     if (definition.type === "DISALLOWED_DATES") return { dates: values };
@@ -139,13 +173,14 @@ function buildValue(definition: RuleDefinition, raw: string | boolean) {
   return raw;
 }
 
-function catalogDefinition(rule: any, questionTypeId: number): RuleDefinition {
+function catalogDefinition(rule: any, questionTypeId: string): RuleDefinition {
   const parameter = Array.isArray(rule?.parameters) ? rule.parameters[0] : null;
   const code = String(rule?.code || "");
   const parameterType = String(parameter?.type || "TEXT").toUpperCase();
   let valueKind: RuleDefinition["valueKind"] = "text";
   if (!parameter) valueKind = "boolean";
   else if (parameterType.includes("NUMBER")) valueKind = "number";
+  else if (parameterType.includes("OPTION")) valueKind = "number";
   else if (parameterType.includes("LIST") || parameter?.multiple === true) valueKind = "list";
   if (/OPTIONS|VALUES|WEEKDAYS|DATES|PROVINCES|WARDS|MUST_CONTAIN|NOT_CONTAIN/.test(code)) valueKind = "list";
   const localizedDefinition = definitionFor(questionTypeId, code) || localizedDefinitionFor(code);
@@ -171,6 +206,7 @@ function toParameters(rule: ValidationRule, definition?: RuleDefinition) {
     const type = String(parameter.type || "TEXT").toUpperCase();
     if (type.includes("NUMBER")) return { numberValue: raw === "" ? null : Number(raw) };
     if (type.includes("DATE")) return { dateValue: String(raw) };
+    if (type.includes("OPTION")) return { optionId: String(raw) };
     return { textValue: String(raw) };
   };
   if (metadata.length > 1) {
@@ -181,7 +217,7 @@ function toParameters(rule: ValidationRule, definition?: RuleDefinition) {
       ...parameterValue(parameter, parameter.name === "base" ? "0" : ""),
     }));
   }
-  if (definition.type === "FIXED_OPTION") return [{ name: "value", groupIndex: 0, position: 0, optionId: Number(value?.optionId ?? value) }];
+  if (definition.type === "FIXED_OPTION") return [{ name: "value", groupIndex: 0, position: 0, optionId: String(value?.optionId ?? value) }];
   if (definition.valueKind === "number") return [{ name: metadata[0]?.name || "value", groupIndex: 0, position: 0, numberValue: value === "" ? null : Number(value) }];
   if (definition.valueKind === "list") {
     const list = Array.isArray(value) ? value : value?.optionIds ?? value?.values ?? value?.dates ?? value?.weekdays ?? value?.provinceCodes ?? value?.wardCodes ?? [];
@@ -189,7 +225,7 @@ function toParameters(rule: ValidationRule, definition?: RuleDefinition) {
     const isNumberList = ["ALLOWED_VALUES", "DISALLOWED_VALUES", "ALLOWED_WEEKDAYS"].includes(definition.type);
     const isDateList = ["ALLOWED_DATES", "DISALLOWED_DATES"].includes(definition.type);
     return list.map((item: any, index: number) => isOptionList
-      ? { name: metadata[0]?.name || "value", groupIndex: 0, position: index, optionId: Number(item) }
+      ? { name: metadata[0]?.name || "value", groupIndex: 0, position: index, optionId: String(item) }
       : isNumberList
         ? { name: metadata[0]?.name || "value", groupIndex: 0, position: index, numberValue: Number(item) }
         : isDateList
@@ -205,8 +241,13 @@ function fromApiRule(rule: any): ValidationRule {
   const parameters = Array.isArray(rule?.parameters) ? rule.parameters : [];
   const defaultMessage = rule.errorMessage || rule.defaultMessage || "Giá trị không hợp lệ";
   if (parameters.length === 0) return { type: String(rule.code), value: true, message: defaultMessage, enabled: rule.isActive !== false };
-  const optionIds = parameters.filter((item: any) => item.optionId != null).map((item: any) => Number(item.optionId));
-  if (optionIds.length === parameters.length) return { type: String(rule.code), value: { optionIds }, message: defaultMessage, enabled: rule.isActive !== false };
+  const optionIds = parameters.filter((item: any) => item.optionId != null).map((item: any) => String(item.optionId));
+  if (optionIds.length === parameters.length) {
+    const value = String(rule.code) === "FIXED_OPTION"
+      ? { optionId: optionIds[0] }
+      : { optionIds };
+    return { type: String(rule.code), value, message: defaultMessage, enabled: rule.isActive !== false };
+  }
   if (parameters.length > 1 || parameters.some((item: any) => item.name !== "value")) {
     const grouped = Object.fromEntries(parameters.map((item: any) => [item.name, item.numberValue ?? item.dateValue ?? item.textValue ?? ""]));
     return { type: String(rule.code), value: grouped, message: defaultMessage, enabled: rule.isActive !== false };
@@ -219,7 +260,7 @@ function fromApiRule(rule: any): ValidationRule {
   return { type: String(rule.code), value, message: defaultMessage, enabled: rule.isActive !== false };
 }
 
-export default function ValidationRulesEditor({ questionId, questionTypeId, questionTypeCode, revision, rules, onChange }: { questionId?: number; questionTypeId: number; questionTypeCode?: string; revision?: number; rules?: ValidationRule[]; onChange: (rules: ValidationRule[]) => void }) {
+export default function ValidationRulesEditor({ questionId, questionTypeId, questionTypeCode, revision, rules, options = [], onChange }: { questionId?: string; questionTypeId: string; questionTypeCode?: string; revision?: number; rules?: ValidationRule[]; options?: QuestionOption[]; onChange: (rules: ValidationRule[]) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [catalog, setCatalog] = useState<RuleDefinition[]>([]);
   const [catalogError, setCatalogError] = useState("");
@@ -364,7 +405,7 @@ export default function ValidationRulesEditor({ questionId, questionTypeId, ques
         <div className="mt-3 space-y-3 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/40">
           {current.map((rule, index) => {
             const definition = definitions.find((item) => item.type === rule.type) || definitionFor(questionTypeId, rule.type);
-            const rawValue = displayValue(rule, definition);
+            const rawValue = displayValue(rule, definition, options);
             return (
               <div key={`${rule.type}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                 <div className="flex items-center gap-2">
@@ -376,7 +417,7 @@ export default function ValidationRulesEditor({ questionId, questionTypeId, ques
                   {definition?.valueKind === "boolean" ? (
                     <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={Boolean(rule.value)} onChange={(event) => updateRule(index, { value: event.target.checked })} /> Áp dụng điều kiện</label>
                   ) : (
-                    <input value={String(rawValue)} placeholder={definition?.placeholder || "Giá trị"} onChange={(event) => updateRule(index, { value: buildValue(definition || { type: rule.type, label: rule.type, valueKind: "text" }, event.target.value) })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800" />
+                    <input value={String(rawValue)} placeholder={definition?.placeholder || "Giá trị"} onChange={(event) => updateRule(index, { value: buildValue(definition || { type: rule.type, label: rule.type, valueKind: "text" }, event.target.value, options) })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800" />
                   )}
                   <input value={rule.message || ""} placeholder="Thông báo lỗi" onChange={(event) => updateRule(index, { message: event.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800" />
                 </div>
@@ -390,7 +431,7 @@ export default function ValidationRulesEditor({ questionId, questionTypeId, ques
             </select>
             <button type="button" onClick={() => setExpanded(true)} className="rounded-lg border border-brand-200 px-3 text-brand-600" title="Thêm điều kiện"><FiPlus size={16} /></button>
           </div>
-          {catalogError && <p className="text-xs text-amber-600">{catalogError}; đang dùng danh sách dự phòng.</p>}
+          {catalogError && <p className="text-xs text-amber-600">{catalogError}. Không thể thêm rule mới cho đến khi kết nối lại.</p>}
           <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-3 dark:border-gray-700">
             {saveState === "saved" && <span className="text-xs font-semibold text-green-600">Đã lưu điều kiện</span>}
             {saveState === "error" && <span className="text-xs font-semibold text-red-600">{saveError || "Lưu điều kiện thất bại"}</span>}

@@ -14,25 +14,31 @@ import { API_QUESTIONS } from "@/lib/api";
 import ValidationRulesEditor from "@/components/surveys/ValidationRulesEditor";
 import MediaUploader from "@/components/surveys/MediaUploader";
 
-const QUESTION_TYPE_CODES: Record<number, string> = {
-  1: "SINGLE_CHOICE",
-  2: "MULTIPLE_CHOICE",
-  3: "TEXT",
-  4: "NUMBER",
-  5: "DATE",
-  6: "ADDRESS",
-};
-
 const getToken = () =>
   localStorage.getItem("token") ||
   sessionStorage.getItem("token");
 
 export default function QuestionEditor({ page, survey, setSurvey }: any) {
-  const [savingMap, setSavingMap] = useState<{ [key: number]: string }>({});
+  const [savingMap, setSavingMap] = useState<Record<string, string>>({});
 
-  const isChoice = (type: number) => type === 1 || type === 2;
-
-  const isAddressType = (type: number) => type === 6;
+  const questionTypes = Array.from(
+    new Map(
+      (survey.pages || [])
+        .flatMap((surveyPage: any) => surveyPage.questions || [])
+        .filter((question: any) => question.questionTypeId && question.questionTypeCode)
+        .map((question: any) => [String(question.questionTypeId), {
+          id: String(question.questionTypeId),
+          code: String(question.questionTypeCode),
+          name: question.questionType?.name || String(question.questionTypeCode),
+        }])
+    ).values()
+  ) as Array<{ id: string; code: string; name: string }>;
+  const typeCodeFor = (question: any) => String(
+    question.questionTypeCode || question.questionType?.code ||
+    questionTypes.find((type) => type.id === String(question.questionTypeId))?.code || ""
+  ).toUpperCase();
+  const isChoice = (question: any) => ["SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(typeCodeFor(question));
+  const isAddressType = (question: any) => typeCodeFor(question) === "ADDRESS";
 
   const getValidOrderIndex = (question: any, fallback: number) => {
     const rawOrderIndex = question?.orderIndex ?? question?.OrderIndex;
@@ -76,13 +82,13 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // Backend có thể trả về orderIndex rỗng. Tự chuẩn hóa ngay trên state để
   // giao diện và mọi request lưu câu hỏi luôn có thứ tự hợp lệ.
   useEffect(() => {
-    const orderIndexById = new Map<number, number>();
+    const orderIndexById = new Map<string, number>();
     questionsOrdered.forEach((question: any, index: number) => {
-      orderIndexById.set(question.id, index + 1);
+      orderIndexById.set(String(question.id), index + 1);
     });
 
     const needsUpdate = questionsRaw.some((question: any) => {
-      const orderIndex = orderIndexById.get(question.id);
+      const orderIndex = orderIndexById.get(String(question.id));
       return (
         orderIndex != null &&
         (Number(question.orderIndex) !== orderIndex ||
@@ -95,7 +101,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     updateSurveyState((p: any) => ({
       ...p,
       questions: (p.questions || []).map((question: any) => {
-        const orderIndex = orderIndexById.get(question.id);
+        const orderIndex = orderIndexById.get(String(question.id));
         return orderIndex == null
           ? question
           : { ...question, orderIndex, OrderIndex: orderIndex };
@@ -104,15 +110,15 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   }, [page?.id, page?.questions]);
 
   const normalizeOrderIndex = (ordered: any[]) => {
-    const orderIndexById = new Map<number, number>();
+    const orderIndexById = new Map<string, number>();
     ordered.forEach((q: any, idx: number) => {
-      orderIndexById.set(q.id, idx + 1);
+      orderIndexById.set(String(q.id), idx + 1);
     });
 
     updateSurveyState((p: any) => ({
       ...p,
       questions: (p.questions || []).map((q: any) => {
-        const nextOrderIndex = orderIndexById.get(q.id);
+        const nextOrderIndex = orderIndexById.get(String(q.id));
         if (nextOrderIndex == null) return q;
         return {
           ...q,
@@ -141,7 +147,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ======================
   // REORDER QUESTIONS
   // ======================
-  const moveQuestion = (qid: number, direction: -1 | 1) => {
+  const moveQuestion = (qid: string, direction: -1 | 1) => {
     const fromIndex = questionsOrdered.findIndex((q: any) => q.id === qid);
     if (fromIndex < 0) return;
 
@@ -155,7 +161,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     void persistQuestionOrder(normalized);
   };
 
-  const setQuestionOrder = (qid: number, nextOrderIndex: number) => {
+  const setQuestionOrder = (qid: string, nextOrderIndex: number) => {
     const fromIndex = questionsOrdered.findIndex((q: any) => q.id === qid);
     if (fromIndex < 0) return;
 
@@ -190,6 +196,11 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
       ? insertIndex + 1
       : 1;
 
+    const defaultType = questionTypes[0];
+    if (!defaultType) {
+      alert("Backend chưa cung cấp danh mục loại câu hỏi. Cần có ít nhất một câu hỏi hiện hữu hoặc endpoint QuestionType để tạo câu hỏi mới.");
+      return;
+    }
     const res = await fetch(API_QUESTIONS, {
       method: "POST",
       headers: {
@@ -199,7 +210,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
       body: JSON.stringify({
         pageId: page.id,
         questionText: "Câu hỏi mới",
-        questionTypeId: 1,
+        questionTypeId: defaultType.id,
         isRequired: false,
         orderIndex: nextOrderIndex,
         description: "",
@@ -266,9 +277,8 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
         imageUrl: q.imageUrl ?? null,
         videoUrl: q.videoUrl ?? null,
         audioUrl: q.audioUrl ?? null,
-        options: isChoice(q.questionTypeId)
+        options: isChoice(q)
           ? (q.options || []).map((o: any) => ({
-              ...(o.id && Number(o.id) < 1000000000000 ? { id: o.id } : {}),
               optionText: o.optionText,
               imageUrl: o.imageUrl ?? null,
               videoUrl: o.videoUrl ?? null,
@@ -296,7 +306,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ======================
   // DELETE
   // ======================
-  const deleteQuestion = async (qid: number) => {
+  const deleteQuestion = async (qid: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa câu hỏi này?")) return;
 
     await fetch(`${API_QUESTIONS}/${qid}`, {
@@ -320,7 +330,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ======================
   // UPDATE QUESTION
   // ======================
-  const updateQuestion = (qid: number, field: string, value: any) => {
+  const updateQuestion = (qid: string, field: string, value: any) => {
     updateSurveyState((p: any) => ({
       ...p,
       questions: p.questions.map((q: any) =>
@@ -332,7 +342,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ======================
   // ADD OPTION
   // ======================
-  const addOption = (qid: number) => {
+  const addOption = (qid: string) => {
     updateSurveyState((p: any) => ({
       ...p,
       questions: p.questions.map((q: any) => {
@@ -342,7 +352,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
           ...q,
           options: [
             ...(q.options || []),
-            { id: Date.now(), optionText: "Lựa chọn mới" },
+            { id: `new-${crypto.randomUUID()}`, optionText: "Lựa chọn mới" },
           ],
         };
       }),
@@ -352,7 +362,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ======================
   // UPDATE OPTION
   // ======================
-  const updateOption = (qid: number, oid: number, value: string) => {
+  const updateOption = (qid: string, oid: string, value: string) => {
     updateSurveyState((p: any) => ({
       ...p,
       questions: p.questions.map((q: any) => {
@@ -368,7 +378,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     }));
   };
 
-  const deleteOption = (qid: number, oid: number) => {
+  const deleteOption = (qid: string, oid: string) => {
     updateSurveyState((p: any) => ({
       ...p,
       questions: p.questions.map((q: any) => q.id !== qid ? q : ({
@@ -378,7 +388,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
     }));
   };
 
-  const updateOptionMedia = (qid: number, oid: number, field: string, value: string) => {
+  const updateOptionMedia = (qid: string, oid: string, field: string, value: string) => {
     updateSurveyState((p: any) => ({
       ...p,
       questions: p.questions.map((q: any) => q.id !== qid ? q : ({
@@ -483,8 +493,9 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                 className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-800 dark:text-white/90 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all cursor-pointer"
                 value={q.questionTypeId}
                 onChange={(e) => {
-                  const val = Number(e.target.value);
-                  const questionTypeCode = QUESTION_TYPE_CODES[val];
+                  const val = e.target.value;
+                  const selectedType = questionTypes.find((type) => type.id === val);
+                  const questionTypeCode = selectedType?.code || "";
 
                   updateSurveyState((p: any) => ({
                     ...p,
@@ -496,16 +507,16 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                         questionTypeId: val,
                         questionTypeCode,
                         questionType: x.questionType
-                          ? { ...x.questionType, id: val, code: questionTypeCode }
+                          ? { ...x.questionType, id: val, code: questionTypeCode, name: selectedType?.name }
                           : x.questionType,
                         // Rule cũ thuộc loại câu hỏi trước nên không còn hợp lệ.
                         validationRules: [],
-                        options: isChoice(val)
+                        options: ["SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(questionTypeCode)
                           ? x.options?.length
                             ? x.options
                             : [
-                                { id: Date.now(), optionText: "Lựa chọn 1" },
-                                { id: Date.now() + 1, optionText: "Lựa chọn 2" },
+                                { id: `new-${crypto.randomUUID()}`, optionText: "Lựa chọn 1" },
+                                { id: `new-${crypto.randomUUID()}`, optionText: "Lựa chọn 2" },
                               ]
                           : [],
                       };
@@ -513,16 +524,11 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                   }));
                 }}
               >
-                <option value={1}>Một lựa chọn</option>
-                <option value={2}>Nhiều lựa chọn</option>
-                <option value={3}>Trả lời ngắn</option>
-                <option value={4}>Số</option>
-                <option value={5}>Ngày tháng</option>
-                <option value={6}>Địa chỉ — Tỉnh/thành, Xã/phường</option>
+                {questionTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
               </select>
             </div>
 
-            {isAddressType(q.questionTypeId) && (
+            {isAddressType(q) && (
               <p className="w-full text-xs text-gray-500 dark:text-gray-400 -mt-2 mb-4 pl-0.5">
                 Trên khảo sát công khai, người trả lời dùng ô tìm kiếm theo tên để chọn tỉnh/thành
                 và xã/phường. Dữ liệu gửi lên server là{" "}
@@ -557,12 +563,12 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
           </div>
 
           {/* OPTIONS */}
-          {isChoice(q.questionTypeId) && (
+          {isChoice(q) && (
             <div className="mb-6 space-y-3 pl-4 border-l-2 border-gray-100 dark:border-gray-800">
               {(q.options || []).map((o: any) => (
                 <div key={o.id} className="flex items-center gap-3">
                   <div className="shrink-0 text-gray-400">
-                    {q.questionTypeId === 1 ? (
+                    {typeCodeFor(q) === "SINGLE_CHOICE" ? (
                       <FiCircle size={16} />
                     ) : (
                       <FiCheckSquare size={16} />
@@ -578,11 +584,11 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
                       }
                       placeholder="Tên lựa chọn"
                     />
-                    {Number.isSafeInteger(Number(o.id)) && Number(o.id) > 0 && Number(o.id) < 1000000000000 ? (
+                    {!String(o.id).startsWith("new-") ? (
                       <MediaUploader
                         compact
                         ownerType="OPTION"
-                        ownerId={Number(o.id)}
+                        ownerId={String(o.id)}
                         values={o}
                         onChange={(field, value) => updateOptionMedia(q.id, o.id, field, value)}
                       />
@@ -615,7 +621,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
           <div className="mb-5">
             <MediaUploader
               ownerType="QUESTION"
-              ownerId={Number(q.id)}
+              ownerId={String(q.id)}
               values={q}
               onChange={(field, value) => updateQuestion(q.id, field, value)}
             />
@@ -623,10 +629,11 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
 
           <ValidationRulesEditor
             questionId={q.id}
-            questionTypeId={Number(q.questionTypeId)}
-            questionTypeCode={QUESTION_TYPE_CODES[Number(q.questionTypeId)]}
+            questionTypeId={String(q.questionTypeId)}
+            questionTypeCode={typeCodeFor(q)}
             revision={survey?.validationRevision ?? survey?.revision}
             rules={q.validationRules}
+            options={q.options || []}
             onChange={(validationRules) => updateQuestion(q.id, "validationRules", validationRules)}
           />
 

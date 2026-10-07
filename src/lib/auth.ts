@@ -1,5 +1,5 @@
 export type StoredUser = {
-  id: number;
+  id: string;
   username: string;
   roles: string[];
   permissions: string[];

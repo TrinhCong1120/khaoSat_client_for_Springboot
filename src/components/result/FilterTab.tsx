@@ -84,7 +84,7 @@ export default function FilterTab({ surveyId }: any) {
     survey?.pages?.flatMap((p: any) => p.questions || []) || [];
 
   const selectedQuestion = allQuestions.find(
-    (q: any) => q.id === Number(form.questionId)
+    (q: any) => String(q.id) === form.questionId
   );
 
   useEffect(() => {
@@ -152,16 +152,16 @@ export default function FilterTab({ surveyId }: any) {
     if (fromIso) body.from = fromIso;
     if (toIso) body.to = toIso;
     if (form.questionId) {
-      body.questionId = Number(form.questionId);
-      if (form.optionId) body.optionId = Number(form.optionId);
+      body.questionId = form.questionId;
+      if (form.optionId) body.optionId = form.optionId;
       if (form.text) body.text = form.text;
       if (form.number !== "" && form.number != null)
         body.number = Number(form.number);
       if (form.date) {
-        body.date = new Date(`${form.date}T00:00:00`).toISOString();
+        body.date = form.date;
       }
       const sq = allQuestions.find(
-        (q: any) => q.id === Number(form.questionId)
+        (q: any) => String(q.id) === form.questionId
       );
       if (sq && isAddressQuestionType(questionMetaForAddress(sq))) {
         if (form.addressProvince !== "" && form.addressProvince != null) {
@@ -371,7 +371,7 @@ export default function FilterTab({ surveyId }: any) {
             </div>
           )}
 
-          {selectedQuestion.questionTypeId === 3 && (
+          {String(selectedQuestion.questionTypeCode).toUpperCase() === "TEXT" && (
             <input
               placeholder="Nhập text..."
               className="w-full border rounded-xl px-3 py-2"
@@ -382,7 +382,7 @@ export default function FilterTab({ surveyId }: any) {
             />
           )}
 
-          {selectedQuestion.questionTypeId === 4 && (
+          {String(selectedQuestion.questionTypeCode).toUpperCase() === "NUMBER" && (
             <input
               type="number"
               className="w-full border rounded-xl px-3 py-2"
@@ -393,7 +393,7 @@ export default function FilterTab({ surveyId }: any) {
             />
           )}
 
-          {selectedQuestion.questionTypeId === 5 && (
+          {String(selectedQuestion.questionTypeCode).toUpperCase() === "DATE" && (
             <DatePicker
               id={`filter-question-date-${surveyId}`}
               placeholder="dd/mm/yyyy"
@@ -440,7 +440,7 @@ export default function FilterTab({ surveyId }: any) {
               {/* HEAD */}
               <thead className="bg-gray-50/50 dark:bg-gray-800/50 text-[11px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">
                 <tr className="border-b border-gray-100 dark:border-gray-800">
-                  <th className="px-6 py-4">#</th>
+                  <th className="px-6 py-4">STT</th>
                   <th className="px-6 py-4">Thời gian</th>
 
                   {preview.map((q: any, i: number) => (
@@ -462,7 +462,7 @@ export default function FilterTab({ surveyId }: any) {
                   >
                     {/* STT */}
                     <td className="px-6 py-4 text-xs text-gray-400 font-mono">
-                      #{i + 1}
+                      {i + 1}
                     </td>
 
                     {/* TIME */}

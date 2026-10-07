@@ -22,7 +22,7 @@ import { API_AUTH } from "@/lib/api";
 
 interface LoginResponse {
   token: string;
-  id: number;
+  id: string;
   username: string;
   roles: string[];
   permissions: string[];

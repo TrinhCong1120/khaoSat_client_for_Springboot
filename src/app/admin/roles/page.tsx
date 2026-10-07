@@ -9,7 +9,7 @@ import { API_ROLES } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
 
 export interface Role {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -49,7 +49,7 @@ export default function RolesPage() {
     fetchRoles();
   }, [fetchRoles]);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("Xác nhận xóa vai trò này?")) return;
 
     await fetch(`${API_ROLES}/${id}`, {

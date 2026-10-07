@@ -10,7 +10,7 @@ import Checkbox from "@/components/form/input/Checkbox";
 import { API_ROLES, API_USERS } from "@/lib/api";
 
 interface Role {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -35,10 +35,11 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
   const isEditMode = !!user;
 
   const [username, setUsername] = useState(user?.username || "");
+  const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
 
   // 🔥 chỉ chọn 1 role
-  const [roleId, setRoleId] = useState<number | "">(
+  const [roleId, setRoleId] = useState<string | "">(
     user?.roleIds?.[0] || ""
   );
 
@@ -102,17 +103,23 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
   // ======================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password && password.length < 8) {
+      setError("Mật khẩu phải có ít nhất 8 ký tự");
+      return;
+    }
     setLoading(true);
     setError(null);
 
     const body = isEditMode
       ? {
           isActive,
+          email,
           ...(password && { password }),
           roleIds: roleId ? [roleId] : [],
         }
       : {
           username,
+          email,
           password,
           roleIds: roleId ? [roleId] : [],
         };
@@ -182,6 +189,12 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
 
           {/* PASSWORD */}
           <div>
+            <Label>Email <span className="text-error-500">*</span></Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </div>
+
+          {/* PASSWORD */}
+          <div>
             <Label>
               Mật khẩu{" "}
               {isEditMode
@@ -204,7 +217,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
             <select
               value={roleId}
               onChange={(e) =>
-                setRoleId(Number(e.target.value))
+                setRoleId(e.target.value)
               }
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 dark:border-gray-700 text-gray-800 dark:text-white outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
               required

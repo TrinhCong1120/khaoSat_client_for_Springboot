@@ -7,7 +7,7 @@ import { mediaField, MediaOwnerType, MediaType, uploadMedia } from "@/lib/media"
 
 type Props = {
   ownerType: MediaOwnerType;
-  ownerId: number;
+  ownerId: string;
   values?: Record<string, any>;
   onChange: (field: string, value: string) => void;
   compact?: boolean;
@@ -21,13 +21,13 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
   const [error, setError] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewType, setPreviewType] = useState<MediaType | null>(null);
-  const [removedMediaIds, setRemovedMediaIds] = useState<number[]>([]);
+  const [removedMediaIds, setRemovedMediaIds] = useState<string[]>([]);
   const token = typeof window === "undefined"
     ? ""
     : localStorage.getItem("token") || sessionStorage.getItem("token") || "";
 
   const mediaFiles = Array.isArray(values?.mediaFiles) ? values.mediaFiles : [];
-  const visibleMedia = mediaFiles.filter((media: any) => !removedMediaIds.includes(Number(media.id)));
+  const visibleMedia = mediaFiles.filter((media: any) => !removedMediaIds.includes(String(media.id)));
   const savedType: MediaType | null = values?.imageUrl
     ? "IMAGE"
     : values?.videoUrl
@@ -102,10 +102,10 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error(`Không xóa được tệp đa phương tiện (${response.status}).`);
-      setRemovedMediaIds((current) => [...current, Number(media.id)]);
+      setRemovedMediaIds((current) => [...current, String(media.id)]);
       if (values?.[mediaField(media.mediaType)] === media.objectUrl) {
         const replacement = visibleMedia.find((item: any) =>
-          item.mediaType === media.mediaType && Number(item.id) !== Number(media.id)
+          item.mediaType === media.mediaType && String(item.id) !== String(media.id)
         );
         onChange(mediaField(media.mediaType), replacement?.objectUrl || "");
       }

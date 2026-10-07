@@ -13,7 +13,6 @@ import {
 } from "@/types/survey";
 import { isAddressQuestionType } from "@/lib/vietnam-address-api";
 import { API_PUBLIC_SURVEYS } from "@/lib/api";
-import { persistFailedSurveyRecord } from "@/lib/failedSurveyStorage";
 
 type OptionMediaFile = {
   mediaType?: string | null;
@@ -21,7 +20,7 @@ type OptionMediaFile = {
 };
 
 type ChoiceOptionMedia = {
-  id: number;
+  id: string;
   optionText?: string | null;
   imageUrl?: string | null;
   mediaFiles?: OptionMediaFile[] | null;
@@ -115,10 +114,10 @@ export default function PublicSurvey() {
   const parseConditionOptionIds = (sourceValue: string) =>
     String(sourceValue || "")
       .split(",")
-      .map((x) => Number(x.trim()))
-      .filter((x) => Number.isFinite(x) && x > 0);
+      .map((x) => x.trim())
+      .filter(Boolean);
 
-  const isEnabled = (questionId: number) => {
+  const isEnabled = (questionId: string) => {
     if (!survey.conditions?.length) return true;
 
     const related = survey.conditions.filter(
@@ -180,7 +179,7 @@ export default function PublicSurvey() {
     return enabled;
   };
 
-  const updateAnswer = (qid: number, value: any, type: string) => {
+  const updateAnswer = (qid: string, value: any, type: string) => {
     setAnswers((prev: any) => ({
       ...prev,
       [qid]: {
@@ -196,7 +195,7 @@ export default function PublicSurvey() {
     }));
   };
 
-  const updateAddressAnswer = (qid: number, next: ProvinceWardValue) => {
+  const updateAddressAnswer = (qid: string, next: ProvinceWardValue) => {
     setAnswers((prev: any) => ({
       ...prev,
       [qid]: {
@@ -214,13 +213,13 @@ export default function PublicSurvey() {
     }));
   };
 
-  const handleOption = (qid: number, optionId: number, multiple: boolean) => {
+  const handleOption = (qid: string, optionId: string, multiple: boolean) => {
     setAnswers((prev: any) => {
       const current = prev[qid]?.optionIds || [];
 
       let updated = multiple
         ? current.includes(optionId)
-          ? current.filter((x: number) => x !== optionId)
+          ? current.filter((x: string) => x !== optionId)
           : [...current, optionId]
         : [optionId];
 
@@ -254,10 +253,10 @@ export default function PublicSurvey() {
         !Number.isFinite(Number(answer.provinceCode)) || Number(answer.provinceCode) <= 0 ||
         !Number.isFinite(Number(answer.wardCode)) || Number(answer.wardCode) <= 0;
     }
-    if (q.questionTypeId === 1 || q.questionTypeId === 2) return !answer?.optionIds?.length;
-    if (q.questionTypeId === 3) return !hasNonBlank(answer?.answerText);
-    if (q.questionTypeId === 4) return answer?.answerNumber == null || answer?.answerNumber === "" || !Number.isFinite(Number(answer.answerNumber));
-    if (q.questionTypeId === 5) return !hasNonBlank(answer?.answerDate);
+    if (typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE") return !answer?.optionIds?.length;
+    if (typeCode === "TEXT") return !hasNonBlank(answer?.answerText);
+    if (typeCode === "NUMBER") return answer?.answerNumber == null || answer?.answerNumber === "" || !Number.isFinite(Number(answer.answerNumber));
+    if (typeCode === "DATE") return !hasNonBlank(answer?.answerDate);
     return true;
   };
 
@@ -267,7 +266,7 @@ export default function PublicSurvey() {
     if (answerIsEmpty(q, answer)) return null;
 
     const typeCode = getQuestionTypeCode(q);
-    const selected = Array.isArray(answer?.optionIds) ? answer.optionIds.map(Number) : [];
+    const selected = Array.isArray(answer?.optionIds) ? answer.optionIds.map(String) : [];
     const text = String(answer?.answerText ?? "");
     const number = Number(answer?.answerNumber);
     const detail = String(answer?.addressDetail ?? "");
@@ -281,13 +280,13 @@ export default function PublicSurvey() {
       const message = rule?.message || "Giá trị không hợp lệ";
       const list = (keys: string[]) => getRuleList(value, keys).map(String);
 
-      if (type === "FIXED_OPTION" && selected[0] !== Number(value?.optionId ?? value)) return message;
-      if (type === "ALLOWED_OPTIONS" && selected.some((id: number) => !list(["optionIds"]).includes(String(id)))) return message;
-      if (type === "DISALLOWED_OPTIONS" && selected.some((id: number) => list(["optionIds"]).includes(String(id)))) return message;
+      if (type === "FIXED_OPTION" && selected[0] !== String(value?.optionId ?? value)) return message;
+      if (type === "ALLOWED_OPTIONS" && selected.some((id: string) => !list(["optionIds"]).includes(id))) return message;
+      if (type === "DISALLOWED_OPTIONS" && selected.some((id: string) => list(["optionIds"]).includes(id))) return message;
       if (type === "MIN_SELECTIONS" && selected.length < Number(value)) return message;
       if (type === "MAX_SELECTIONS" && selected.length > Number(value)) return message;
-      if (type === "REQUIRED_OPTIONS" && list(["optionIds"]).some((id) => !selected.includes(Number(id)))) return message;
-      if (type === "MUTUALLY_EXCLUSIVE" && list(["optionIds"]).some((id) => selected.includes(Number(id))) && selected.length > 1) return message;
+      if (type === "REQUIRED_OPTIONS" && list(["optionIds"]).some((id) => !selected.includes(id))) return message;
+      if (type === "MUTUALLY_EXCLUSIVE" && list(["optionIds"]).some((id) => selected.includes(id)) && selected.length > 1) return message;
 
       if (type === "MIN_LENGTH" && text.length < Number(value)) return message;
       if (type === "MAX_LENGTH" && text.length > Number(value)) return message;
@@ -337,129 +336,6 @@ export default function PublicSurvey() {
     return null;
   };
 
-  const validateQuestion = (q: any) => {
-    const message = validateQuestionValue(q, answers[q.id]);
-    setErrors((prev: any) => ({ ...prev, [q.id]: message }));
-    return message;
-  };
-
-  const validateWithBackend = async (scopeType: "QUESTION" | "PAGE" | "SURVEY", questionId?: number, pageId?: number) => {
-    const requestId = ++validationRequestRef.current;
-    const payload = buildPublicSurveySubmitAnswers(survey, answers);
-    let response: Response;
-    try {
-      response = await fetch(`${API_PUBLIC_SURVEYS}/${id}/validate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          surveyRevision: survey?.validationRevision ?? survey?.revision ?? 1,
-          scope: {
-            type: scopeType,
-            ...(questionId == null ? {} : { questionId }),
-            ...(pageId == null ? {} : { pageId }),
-          },
-          answers: payload,
-        }),
-      });
-    } catch {
-      const message = "Chưa thể xác minh câu trả lời. Vui lòng kiểm tra kết nối mạng.";
-      if (scopeType === "QUESTION" && questionId != null) setErrors((prev: any) => ({ ...prev, [questionId]: message }));
-      return { valid: false, fieldErrors: questionId == null ? [] : [{ questionId, message }] };
-    }
-
-    const body = await response.json().catch(() => ({}));
-    if (requestId !== validationRequestRef.current) return { valid: true, fieldErrors: [] };
-
-    const fieldErrors = Array.isArray(body?.fieldErrors) ? body.fieldErrors : [];
-    const scopeQuestionIds = scopeType === "QUESTION"
-      ? new Set(questionId == null ? [] : [questionId])
-      : new Set(
-          (scopeType === "PAGE"
-            ? survey.pages.find((page: any) => page.id === pageId)?.questions || []
-            : survey.pages.flatMap((page: any) => page.questions || [])
-          ).map((question: any) => question.id)
-        );
-    // Một số phiên bản Backend hiện vẫn trả lỗi toàn survey dù scope là PAGE/QUESTION.
-    // Chỉ dùng lỗi thuộc phạm vi đang kiểm tra để quyết định chuyển trang.
-    const scopedFieldErrors = fieldErrors.filter((error: any) => scopeQuestionIds.has(Number(error?.questionId)));
-    if (scopeType === "QUESTION" && questionId != null) {
-      const fieldError = scopedFieldErrors.find((error: any) => Number(error.questionId) === questionId);
-      setErrors((prev: any) => ({
-        ...prev,
-        [questionId]: fieldError?.message || null,
-      }));
-    } else {
-      setErrors((prev: any) => {
-        const next = { ...prev };
-        const scopeQuestions = scopeType === "PAGE"
-          ? survey.pages.find((page: any) => page.id === pageId)?.questions || []
-          : survey.pages.flatMap((page: any) => page.questions || []);
-        for (const question of scopeQuestions) delete next[question.id];
-        for (const error of scopedFieldErrors) {
-          if (error?.questionId != null) next[error.questionId] = error.message || "Dữ liệu không hợp lệ";
-        }
-        return next;
-      });
-    }
-
-    return { valid: response.ok && scopedFieldErrors.length === 0, fieldErrors: scopedFieldErrors };
-  };
-
-  const getSingleAnswerPayload = (q: any) => {
-    const answer = answers[q.id];
-    if (!answer) return null;
-    const typeCode = getQuestionTypeCode(q);
-    if (typeCode === "SINGLE_CHOICE" || q.questionTypeId === 1) return answer.optionIds?.[0] ?? null;
-    if (typeCode === "MULTIPLE_CHOICE" || q.questionTypeId === 2) return Array.isArray(answer.optionIds) ? answer.optionIds : [];
-    if (typeCode === "TEXT" || q.questionTypeId === 3) return answer.answerText ?? "";
-    if (typeCode === "NUMBER" || q.questionTypeId === 4) return answer.answerNumber ?? "";
-    if (typeCode === "DATE" || q.questionTypeId === 5) return answer.answerDate ?? "";
-    if (typeCode === "ADDRESS" || isAddressQuestionType(q)) {
-      return {
-        province: answer.province ?? "",
-        ward: answer.ward ?? "",
-        addressDetail: answer.addressDetail ?? "",
-      };
-    }
-    return null;
-  };
-
-  const validateOneWithBackend = async (q: any) => {
-    const requestId = ++validationRequestRef.current;
-    try {
-      const response = await fetch(`${API_PUBLIC_SURVEYS}/${id}/validate-answer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionId: q.id,
-          answer: getSingleAnswerPayload(q),
-        }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (requestId !== validationRequestRef.current) return;
-      if (!response.ok) {
-        setErrors((prev: any) => ({
-          ...prev,
-          [q.id]: body?.message || `Không thể kiểm tra câu trả lời (${response.status})`,
-        }));
-        return;
-      }
-      const fieldError = Array.isArray(body?.fieldErrors)
-        ? body.fieldErrors.find((error: any) => Number(error?.questionId) === Number(q.id))
-        : null;
-      setErrors((prev: any) => ({
-        ...prev,
-        [q.id]: fieldError?.message || null,
-      }));
-    } catch {
-      if (requestId !== validationRequestRef.current) return;
-      setErrors((prev: any) => ({
-        ...prev,
-        [q.id]: "Chưa thể xác minh câu trả lời. Vui lòng kiểm tra kết nối mạng.",
-      }));
-    }
-  };
-
   // Endpoint validate dùng chung: gửi đúng các câu cần kiểm tra, kể cả câu trống.
   const validateAnswersWithBackend = async (questions: any[], retriedAfterRevisionConflict = false, revisionOverride?: number) => {
     const requestId = ++validationRequestRef.current;
@@ -467,18 +343,20 @@ export default function PublicSurvey() {
       const answer = answers[q.id] || {};
       const typeCode = getQuestionTypeCode(q);
       const payload: any = { questionId: q.id };
-      if (typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE" || q.questionTypeId === 1 || q.questionTypeId === 2) {
+      if (typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE") {
         payload.optionIds = Array.isArray(answer.optionIds) ? answer.optionIds : [];
-      } else if (typeCode === "TEXT" || q.questionTypeId === 3) {
+      } else if (typeCode === "TEXT") {
         payload.answerText = answer.answerText ?? "";
-      } else if (typeCode === "NUMBER" || q.questionTypeId === 4) {
+      } else if (typeCode === "NUMBER") {
         const value = String(answer.answerNumber ?? "").trim();
         if (value && /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(value)) payload.answerNumber = Number(value);
-      } else if (typeCode === "DATE" || q.questionTypeId === 5) {
+      } else if (typeCode === "DATE") {
         payload.answerDate = answer.answerDate ?? "";
       } else if (typeCode === "ADDRESS" || isAddressQuestionType(q)) {
         payload.province = answer.province ?? "";
         payload.ward = answer.ward ?? "";
+        payload.provinceCode = answer.provinceCode == null ? null : String(answer.provinceCode);
+        payload.wardCode = answer.wardCode == null ? null : String(answer.wardCode);
         payload.addressDetail = answer.addressDetail ?? "";
       }
       return payload;
@@ -513,9 +391,9 @@ export default function PublicSurvey() {
         }
         return { valid: false, fieldErrors: [] };
       }
-      const requestedQuestionIds = new Set(questions.map((q: any) => Number(q.id)));
+      const requestedQuestionIds = new Set(questions.map((q: any) => String(q.id)));
       const fieldErrors = Array.isArray(body?.fieldErrors)
-        ? body.fieldErrors.filter((error: any) => requestedQuestionIds.has(Number(error?.questionId)))
+        ? body.fieldErrors.filter((error: any) => requestedQuestionIds.has(String(error?.questionId)))
         : [];
       setErrors((prev: any) => {
         const next = { ...prev };
@@ -546,75 +424,12 @@ export default function PublicSurvey() {
     }
   };
 
-  const validate = (pageIndex?: number) => {
-    const newErrors: any = {};
-
-    const pagesToValidate =
-      pageIndex == null ? survey.pages : [survey.pages[pageIndex]];
-
-    pagesToValidate.forEach((p: any) => {
-      if (!p) return;
-      p.questions.forEach((q: any) => {
-        const ruleError = validateQuestionValue(q, answers[q.id]);
-        if (ruleError) newErrors[q.id] = ruleError;
-        if (!isEnabled(q.id)) return;
-        if (!q.isRequired) return;
-
-        const answer = answers[q.id];
-        const typeCode = getQuestionTypeCode(q);
-
-        let isEmpty = false;
-
-        if (typeCode === "ADDRESS" || isAddressQuestionType(q)) {
-          isEmpty =
-            answer == null ||
-            !hasNonBlank(answer.province) ||
-            !hasNonBlank(answer.ward) ||
-            !Number.isFinite(Number(answer.provinceCode)) ||
-            Number(answer.provinceCode) <= 0 ||
-            !Number.isFinite(Number(answer.wardCode)) ||
-            Number(answer.wardCode) <= 0;
-        } else if (q.questionTypeId === 1 || q.questionTypeId === 2) {
-          isEmpty = !answer?.optionIds?.length;
-        } else if (q.questionTypeId === 3) {
-          isEmpty = !hasNonBlank(answer?.answerText);
-        } else if (q.questionTypeId === 4) {
-          isEmpty =
-            answer?.answerNumber == null ||
-            answer?.answerNumber === "" ||
-            !Number.isFinite(Number(answer.answerNumber));
-        } else if (q.questionTypeId === 5) {
-          isEmpty = !hasNonBlank(answer?.answerDate);
-        } else {
-          isEmpty = true;
-        }
-
-        if (isEmpty) {
-          newErrors[q.id] = "Câu hỏi này là bắt buộc";
-        }
-      });
-    });
-
-    // Recalculate after the legacy required check so every rule uses the same message.
-    pagesToValidate.forEach((p: any) => {
-      if (!p) return;
-      p.questions.forEach((q: any) => {
-        const error = validateQuestionValue(q, answers[q.id]);
-        if (error) newErrors[q.id] = error;
-        else delete newErrors[q.id];
-      });
-    });
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   const goToPage = (nextPage: number) => {
     setCurrentPage(nextPage);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const scrollToFirstError = (questions: Array<{ id: number | string }>) => {
+  const scrollToFirstError = (questions: Array<{ id: string }>) => {
     // Wait until React has rendered the validation messages before locating them.
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -647,19 +462,27 @@ export default function PublicSurvey() {
     const validationResult = await validateAnswersWithBackend(allQuestions);
     if (!validationResult?.valid) return;
 
-    // Gửi toàn bộ trạng thái đã nhập để Backend tự tính conditions và quyết định
-    // câu nào applicable; FE không tự loại câu trả lời bị ẩn.
-    const payload = buildPublicSurveySubmitAnswers(survey, answers);
+    const payload = buildPublicSurveySubmitAnswers(survey, answers)
+      .filter((answer) => isEnabled(answer.questionId));
+    const requestKey = `survey-request-id:${id}`;
+    const requestId = localStorage.getItem(requestKey) || crypto.randomUUID();
+    localStorage.setItem(requestKey, requestId);
 
     try {
       const res = await fetch(`${API_PUBLIC_SURVEYS}/${id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers: payload }),
+        body: JSON.stringify({ requestId, answers: payload }),
       });
 
       if (res.ok) {
-        setSubmitted(true);
+        const body = await res.json().catch(() => null);
+        if (body?.responseId) {
+          localStorage.removeItem(requestKey);
+          setSubmitted(true);
+        } else {
+          alert("Phản hồi đã được tiếp nhận và đang chờ hệ thống xử lý. Bạn không cần gửi lại.");
+        }
         return;
       }
 
@@ -669,20 +492,6 @@ export default function PublicSurvey() {
         body = rawText ? JSON.parse(rawText) : null;
       } catch {
         body = null;
-      }
-
-      try {
-        await persistFailedSurveyRecord({
-          surveyId: Number(id),
-          surveyTitle: survey?.title || null,
-          statusCode: res.status,
-          statusText: res.statusText,
-          message: body?.message || body?.error || rawText || "Submit lỗi",
-          url: `${API_PUBLIC_SURVEYS}/${id}/submit`,
-          payload: { answers: payload },
-        });
-      } catch {
-        // fallback silent; UI still shows the server error
       }
 
       if (Array.isArray(body?.fieldErrors) && body.fieldErrors.length > 0) {
@@ -705,22 +514,8 @@ export default function PublicSurvey() {
       } else {
         alert(`Submit lỗi (${res.status})`);
       }
-    } catch (error) {
-      try {
-        await persistFailedSurveyRecord({
-          surveyId: Number(id),
-          surveyTitle: survey?.title || null,
-          statusCode: 0,
-          statusText: "NetworkError",
-          message:
-            error instanceof Error ? error.message : "Network request failed",
-          url: `${API_PUBLIC_SURVEYS}/${id}/submit`,
-          payload: { answers: payload },
-        });
-      } catch {
-        // noop
-      }
-      alert("Không gửi được khảo sát. Dữ liệu đã được lưu vào public/failed-surveys để xử lý sau.");
+    } catch {
+      alert("Không gửi được khảo sát. Vui lòng kiểm tra mạng rồi thử lại; mã yêu cầu hiện tại sẽ được giữ để tránh lưu trùng.");
     }
   };
 
@@ -822,7 +617,7 @@ export default function PublicSurvey() {
             const isAddress = typeCode === "ADDRESS" || isAddressQuestionType(q);
             const choiceOptions = Array.isArray(q.options) ? q.options : [];
             const hasImageOptions =
-              (q.questionTypeId === 1 || q.questionTypeId === 2) &&
+              (typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE") &&
               choiceOptions.some((option: ChoiceOptionMedia) => getOptionImageUrls(option).length > 0);
 
             return (
@@ -837,11 +632,11 @@ export default function PublicSurvey() {
                     const typeCode = getQuestionTypeCode(q);
                     const isEmpty =
                       !answer ||
-                      (typeCode === "TEXT" || q.questionTypeId === 3
+                      (typeCode === "TEXT"
                         ? !hasNonBlank(answer.answerText)
-                        : typeCode === "NUMBER" || q.questionTypeId === 4
+                        : typeCode === "NUMBER"
                           ? !hasNonBlank(answer.answerNumber)
-                          : typeCode === "DATE" || q.questionTypeId === 5
+                          : typeCode === "DATE"
                             ? !hasNonBlank(answer.answerDate)
                             : typeCode === "ADDRESS" || isAddressQuestionType(q)
                               ? !hasNonBlank(answer.province) || !hasNonBlank(answer.ward)
@@ -908,7 +703,7 @@ export default function PublicSurvey() {
                     </div>
                   ) : (
                     <>
-                      {(q.questionTypeId === 1 || q.questionTypeId === 2) && (
+                      {(typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE") && (
                         <div className={hasImageOptions ? "mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-3" : ""}>
                           {choiceOptions.map((o: ChoiceOptionMedia) => {
                             const optionImageUrls = getOptionImageUrls(o);
@@ -947,13 +742,13 @@ export default function PublicSurvey() {
                                     )}
                                     <span className={`flex items-start gap-3 px-3 py-3 ${optionHasImages ? "" : "min-h-24 items-center"}`}>
                                       <input
-                                        type={q.questionTypeId === 1 ? "radio" : "checkbox"}
+                                        type={typeCode === "SINGLE_CHOICE" ? "radio" : "checkbox"}
                                         name={`q-${q.id}`}
                                         aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
                                         className="mt-0.5 size-5 shrink-0 accent-brand-600"
                                         disabled={!enabled}
                                         checked={checked}
-                                        onChange={() => handleOption(q.id, o.id, q.questionTypeId === 2)}
+                                        onChange={() => handleOption(q.id, o.id, typeCode === "MULTIPLE_CHOICE")}
                                       />
                                       <span className="min-w-0 break-words text-[15px] leading-6 text-gray-800 dark:text-gray-200">{o.optionText}</span>
                                     </span>
@@ -961,13 +756,13 @@ export default function PublicSurvey() {
                                 ) : (
                                   <>
                                     <input
-                                      type={q.questionTypeId === 1 ? "radio" : "checkbox"}
+                                      type={typeCode === "SINGLE_CHOICE" ? "radio" : "checkbox"}
                                       name={`q-${q.id}`}
                                       aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
                                       className="mt-0.5 size-5 shrink-0 accent-brand-600"
                                       disabled={!enabled}
                                       checked={checked}
-                                      onChange={() => handleOption(q.id, o.id, q.questionTypeId === 2)}
+                                      onChange={() => handleOption(q.id, o.id, typeCode === "MULTIPLE_CHOICE")}
                                     />
                                     <span className="min-w-0 flex-1 break-words text-[15px] leading-6 text-gray-800 dark:text-gray-200">{o.optionText}</span>
                                   </>
@@ -978,7 +773,7 @@ export default function PublicSurvey() {
                         </div>
                       )}
 
-                      {q.questionTypeId === 3 && (
+                      {typeCode === "TEXT" && (
                         <input
                           type="text"
                           name={`question-${q.id}-text`}
@@ -992,7 +787,7 @@ export default function PublicSurvey() {
                         />
                       )}
 
-                      {q.questionTypeId === 4 && (
+                      {typeCode === "NUMBER" && (
                         <input
                           type="text"
                           inputMode="decimal"
@@ -1007,7 +802,7 @@ export default function PublicSurvey() {
                         />
                       )}
 
-                      {q.questionTypeId === 5 && (
+                      {typeCode === "DATE" && (
                         <DatePicker
                           id={`public-answer-date-${q.id}`}
                           placeholder="dd/mm/yyyy"

@@ -7,7 +7,7 @@ import { FiEdit3, FiTrash2 } from "react-icons/fi";
 interface UserTableProps {
   users: User[];
   onEdit: (user: User) => void;
-  onDelete: (userId: number) => void;
+  onDelete: (userId: string) => void;
 }
 
 const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onDelete }) => {
@@ -19,7 +19,7 @@ const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onDelete }) => {
           {/* HEADER */}
           <thead className="bg-gray-50 text-xs font-semibold text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
             <tr className="border-b border-gray-100 dark:border-gray-800">
-              <th className="px-6 py-4">ID</th>
+              <th className="px-6 py-4">STT</th>
               <th className="px-6 py-4">Thông tin người dùng</th>
               <th className="px-6 py-4">Vai trò</th>
               <th className="px-6 py-4">Trạng thái</th>
@@ -36,13 +36,13 @@ const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onDelete }) => {
                 </td>
               </tr>
             ) : (
-              users.map((user) => (
+              users.map((user, index) => (
                 <tr
                   key={user.id}
                   className="group hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors"
                 >
                   <td className="px-6 py-4 font-mono text-xs text-gray-400">
-                    #{user.id}
+                    {index + 1}
                   </td>
 
                   <td className="px-6 py-4">
@@ -50,7 +50,7 @@ const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onDelete }) => {
                       <div className="w-8 h-8 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center text-brand-600 dark:text-brand-400 font-bold text-xs border border-brand-100 dark:border-brand-500/20">
                         {user.username?.charAt(0)?.toUpperCase()}
                       </div>
-                      <span className="font-semibold text-gray-800 dark:text-white/90">{user.username}</span>
+                      <div className="min-w-0"><p className="font-semibold text-gray-800 dark:text-white/90">{user.username}</p><p className="truncate text-xs text-gray-400">{user.email}</p></div>
                     </div>
                   </td>
 
@@ -108,12 +108,12 @@ const UserTable: React.FC<UserTableProps> = ({ users, onEdit, onDelete }) => {
       <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
         {users.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-gray-400">Không tìm thấy người dùng nào.</div>
-        ) : users.map((user) => (
+        ) : users.map((user, index) => (
           <article key={user.id} className="p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">{user.username?.charAt(0)?.toUpperCase()}</div>
-                <div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{user.username}</p><p className="font-mono text-xs text-gray-400">#{user.id}</p></div>
+                <div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{user.username}</p><p className="text-xs text-gray-400">STT: {index + 1}</p></div>
               </div>
               <div className="flex shrink-0 gap-1">
                 <button aria-label="Chỉnh sửa" onClick={() => onEdit(user)} className="rounded-xl p-2 text-gray-400 hover:bg-brand-50 hover:text-brand-500"><FiEdit3 size={18} /></button>

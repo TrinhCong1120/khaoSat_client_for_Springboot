@@ -13,6 +13,7 @@ function normalizeReport(raw: any) {
   if (!raw || !Array.isArray(raw.questions)) return raw;
   return {
     ...raw,
+    surveyName: raw.surveyName ?? raw.surveyTitle,
     questions: raw.questions.map((question: any) => ({
       ...question,
       question: question.question ?? question.questionText,
@@ -23,7 +24,10 @@ function normalizeReport(raw: any) {
         count: option.count,
         percent: option.percent ?? option.percentage,
       })),
-      stats: question.stats ?? question.numberStatistics,
+      stats: question.stats ?? question.numberStatistics ?? (question.dateStatistics ? {
+        minDate: question.dateStatistics.min,
+        maxDate: question.dateStatistics.max,
+      } : null),
       topTexts:
         question.topTexts ??
         question.textStatistics?.topAnswers?.map((answer: any) => ({

@@ -41,18 +41,18 @@ import { API_FUNCTIONS, API_MENUS } from "@/lib/api";
 // TYPES
 // ======================
 type MenuItem = {
-  id: number;
+  id: string;
   name: string;
   path?: string;
-  parentId?: number | null;
-  functionId?: number | null;
+  parentId?: string | null;
+  functionId?: string | null;
   orderIndex?: number;
   icon?: string;
   children?: MenuItem[];
 };
 
 type FunctionItem = {
-  id: number;
+  id: string;
   name: string;
   code: string;
 };
@@ -96,8 +96,8 @@ function sortByOrder(items: MenuItem[]) {
 /** Tìm danh sách anh em cùng cấp (đã sort) và parentId của một menu */
 function getSiblingContext(
   tree: MenuItem[],
-  id: number
-): { siblings: MenuItem[]; parentId: number | null } | null {
+  id: string
+): { siblings: MenuItem[]; parentId: string | null } | null {
   const atRoot = tree.find((m) => m.id === id);
   if (atRoot) {
     return { siblings: sortByOrder(tree), parentId: null };
@@ -139,11 +139,11 @@ function TreeItem({
   reordering,
 }: {
   item: MenuItem;
-  selectedId?: number;
+  selectedId?: string;
   onSelect: (item: MenuItem) => void;
   refresh: () => void;
   menus: MenuItem[];
-  onMoveSibling: (id: number, direction: "up" | "down") => void;
+  onMoveSibling: (id: string, direction: "up" | "down") => void;
   reordering?: boolean;
 }) {
   const [open, setOpen] = useState(true);
@@ -339,6 +339,9 @@ export default function MenuManagerPage() {
     () => sortedRootMenus.map((m) => m.id),
     [sortedRootMenus]
   );
+  const selectedSequence = selected
+    ? (getSiblingContext(menus, selected.id)?.siblings.findIndex((item) => item.id === selected.id) ?? -1) + 1
+    : 0;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -348,7 +351,7 @@ export default function MenuManagerPage() {
 
   const persistSiblingOrder = async (
     siblings: MenuItem[],
-    parentId: number | null
+    parentId: string | null
   ) => {
     const parentPayload = parentId === null ? null : parentId;
     await Promise.all(
@@ -366,7 +369,7 @@ export default function MenuManagerPage() {
     );
   };
 
-  const moveSibling = async (id: number, direction: "up" | "down") => {
+  const moveSibling = async (id: string, direction: "up" | "down") => {
     const ctx = getSiblingContext(menus, id);
     if (!ctx) return;
     const sorted = ctx.siblings;
@@ -387,8 +390,8 @@ export default function MenuManagerPage() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const activeId = Number(active.id);
-    const overId = Number(over.id);
+    const activeId = String(active.id);
+    const overId = String(over.id);
     const ctxA = getSiblingContext(menus, activeId);
     const ctxB = getSiblingContext(menus, overId);
     if (!ctxA || !ctxB || ctxA.parentId !== ctxB.parentId) return;
@@ -569,7 +572,7 @@ export default function MenuManagerPage() {
                   </h2>
                 </div>
                 <div className="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-mono text-gray-500 dark:text-gray-400">
-                  ID: {selected.id}
+                  STT: {selectedSequence}
                 </div>
               </div>
 
@@ -609,7 +612,7 @@ export default function MenuManagerPage() {
                       setForm({
                         ...form,
                         functionId: e.target.value
-                          ? Number(e.target.value)
+                          ? e.target.value
                           : null,
                       })
                     }

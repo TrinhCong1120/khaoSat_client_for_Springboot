@@ -13,15 +13,15 @@ const getToken = () =>
 // TYPES (ĐÚNG THEO API)
 // ======================
 interface Permission {
-  permissionID: number;
+  permissionID: string;
   action: string;
   isActive: boolean;
 }
 
 interface Row {
-  functionID: number;
+  functionID: string;
   functionName: string;
-  roleID: number;
+  roleID: string;
   roleName: string;
   permissions: Permission[];
 }
@@ -73,8 +73,8 @@ const PermissionMatrixModal = ({
   // UPDATE PERMISSION
   // ======================
   const handleToggle = async (
-    roleId: number,
-    permissionId: number,
+    roleId: string,
+    permissionId: string,
     isActive: boolean
   ) => {
     try {

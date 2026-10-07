@@ -11,7 +11,7 @@ const getToken = () =>
   sessionStorage.getItem("token");
 
 interface Func {
-  id: number;
+  id: string;
   name: string;
   code: string;
 }
@@ -19,7 +19,7 @@ interface Func {
 export default function FunctionsPage() {
   const [functions, setFunctions] = useState<Func[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFunction, setSelectedFunction] = useState<number | null>(null);
+  const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const paginatedFunctions = functions.slice((page - 1) * pageSize, page * pageSize);
@@ -73,7 +73,7 @@ export default function FunctionsPage() {
           <>
             <FunctionTable
               functions={paginatedFunctions}
-              onPermission={(id: number) => setSelectedFunction(id)}
+              onPermission={(id: string) => setSelectedFunction(id)}
             />
             <Pagination page={page} pageSize={pageSize} total={functions.length} onPageChange={setPage} />
           </>
