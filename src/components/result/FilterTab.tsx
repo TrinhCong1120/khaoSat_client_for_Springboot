@@ -1,518 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { FiEye } from "react-icons/fi";
-import DatePicker from "@/components/form/date-picker";
-import ResponseAnswerCell from "@/components/result/ResponseAnswerCell";
-import SearchableCodeSelect from "@/components/form/SearchableCodeSelect";
-import { isAddressQuestionType } from "@/lib/vietnam-address-api";
-import { API_PROVINCES, API_REPORTS, API_RESPONSES, API_SURVEYS } from "@/lib/api";
+import { useMemo, useState } from "react";
+import { Filter, RotateCcw, SlidersHorizontal } from "lucide-react";
 
-function isChoiceQuestionTypeId(id: unknown): boolean {
-  return id === 1 || id === 2;
-}
+import { localDayBoundary } from "@/lib/report";
+import type { ReportFilter, SurveyResultQuestion } from "@/types/report";
 
-function questionMetaForAddress(q: any) {
+type Draft = Record<"from" | "to" | "questionId" | "optionId" | "text" | "number" | "date" | "province" | "ward", string>;
+const EMPTY: Draft = { from: "", to: "", questionId: "", optionId: "", text: "", number: "", date: "", province: "", ward: "" };
+const control = "h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100";
+
+function fromFilter(value: ReportFilter): Draft {
   return {
-    questionTypeId: q?.questionTypeId,
-    questionTypeCode: q?.questionTypeCode ?? q?.questionType?.code,
-    type: q?.type ?? q?.questionType?.code,
-  };
+    ...EMPTY,
+    ...Object.fromEntries(Object.entries(value).map(([key, item]) => [key, item == null ? "" : String(item)])),
+    from: value.from?.slice(0, 10) ?? "",
+    to: value.to?.slice(0, 10) ?? "",
+  } as Draft;
 }
 
-const getToken = () =>
-  localStorage.getItem("token") ||
-  sessionStorage.getItem("token");
+export default function FilterTab({ questions, value, onApply }: { questions: SurveyResultQuestion[]; value: ReportFilter; onApply: (value: ReportFilter) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Draft>(() => fromFilter(value));
 
+  const selected = questions.find((question) => question.id === draft.questionId);
+  const activeCount = Object.keys(value).length;
+  const questionType = String(selected?.questionTypeCode ?? "").toUpperCase();
+  const set = (key: keyof Draft, next: string) => setDraft((current) => ({ ...current, [key]: next, ...(key === "questionId" ? { optionId: "", text: "", number: "", date: "", province: "", ward: "" } : {}) }));
 
-function dayStartIso(d: string): string | undefined {
-  if (!d) return undefined;
-  return new Date(`${d}T00:00:00`).toISOString();
-}
+  const detailField = useMemo(() => {
+    if (!draft.questionId) return null;
+    if (questionType.includes("CHOICE")) return <label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">Lựa chọn<select className={control} value={draft.optionId} onChange={(event) => set("optionId", event.target.value)}><option value="">Tất cả lựa chọn</option>{(selected?.options ?? []).map((option) => <option key={option.id} value={option.id}>{option.text ?? option.optionText ?? option.id}</option>)}</select></label>;
+    if (questionType === "NUMBER") return <label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">Giá trị số<input className={control} type="number" value={draft.number} onChange={(event) => set("number", event.target.value)} /></label>;
+    if (questionType === "DATE") return <label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">Ngày trả lời<input className={control} type="date" value={draft.date} onChange={(event) => set("date", event.target.value)} /></label>;
+    if (questionType === "ADDRESS") return <><label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">Tỉnh / thành<input className={control} value={draft.province} onChange={(event) => set("province", event.target.value)} placeholder="Tên tỉnh, thành" /></label><label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">Phường / xã<input className={control} value={draft.ward} onChange={(event) => set("ward", event.target.value)} placeholder="Tên phường, xã" /></label></>;
+    return <label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">Nội dung chứa<input className={control} value={draft.text} onChange={(event) => set("text", event.target.value)} placeholder="Nhập từ khóa trong câu trả lời" /></label>;
+  }, [draft, questionType, selected?.options]);
 
-function dayEndIso(d: string): string | undefined {
-  if (!d) return undefined;
-  return new Date(`${d}T23:59:59.999`).toISOString();
-}
-
-export default function FilterTab({ surveyId }: any) {
-  const router = useRouter();
-
-  const [survey, setSurvey] = useState<any>(null);
-  const [result, setResult] = useState<any[]>([]);
-
-  const [form, setForm] = useState<any>({
-    questionId: "",
-    optionId: "",
-    text: "",
-    number: "",
-    date: "",
-    fromDate: "",
-    toDate: "",
-    addressProvince: "",
-    addressWard: "",
-  });
-
-  const [provinceOptions, setProvinceOptions] = useState<
-    { code: number; name: string }[]
-  >([]);
-  const [wardOptions, setWardOptions] = useState<
-    { code: number; name: string }[]
-  >([]);
-  const [wardsLoading, setWardsLoading] = useState(false);
-
-  // ======================
-  // LOAD SURVEY
-  // ======================
-  useEffect(() => {
-    const loadSurvey = async () => {
-      const res = await fetch(`${API_SURVEYS}/${surveyId}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-
-      setSurvey(await res.json());
-    };
-
-    loadSurvey();
-  }, [surveyId]);
-
-  // ======================
-  // GET QUESTIONS
-  // ======================
-  const allQuestions =
-    survey?.pages?.flatMap((p: any) => p.questions || []) || [];
-
-  const selectedQuestion = allQuestions.find(
-    (q: any) => String(q.id) === form.questionId
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${API_PROVINCES}/`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data: { name: string; code: number }[]) => {
-        if (cancelled) return;
-        const list = (Array.isArray(data) ? data : []).map((p) => ({
-          name: p.name,
-          code: p.code,
-        }));
-        list.sort((a, b) => a.name.localeCompare(b.name, "vi"));
-        setProvinceOptions(list);
-      })
-      .catch(() => {
-        if (!cancelled) setProvinceOptions([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const pc = form.addressProvince;
-    if (!pc || !Number.isFinite(Number(pc))) {
-      setWardOptions([]);
-      return;
-    }
-    let cancelled = false;
-    setWardsLoading(true);
-    fetch(`${API_PROVINCES}/p/${Number(pc)}?depth=2`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data: {
-        wards?: { name: string; code: number }[];
-        districts?: { wards?: { name: string; code: number }[] }[];
-      }) => {
-        if (cancelled) return;
-        const flat: { name: string; code: number }[] = [];
-        if (Array.isArray(data.wards) && data.wards.length) {
-          flat.push(...data.wards);
-        } else if (Array.isArray(data.districts)) {
-          for (const d of data.districts) {
-            if (d.wards?.length) flat.push(...d.wards);
-          }
-        }
-        flat.sort((a, b) => a.name.localeCompare(b.name, "vi"));
-        setWardOptions(flat);
-      })
-      .catch(() => {
-        if (!cancelled) setWardOptions([]);
-      })
-      .finally(() => {
-        if (!cancelled) setWardsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [form.addressProvince]);
-
-  const buildFilterBody = (): Record<string, unknown> => {
-    const body: Record<string, unknown> = {};
-    const fromIso = dayStartIso(form.fromDate);
-    const toIso = dayEndIso(form.toDate);
-    if (fromIso) body.from = fromIso;
-    if (toIso) body.to = toIso;
-    if (form.questionId) {
-      body.questionId = form.questionId;
-      if (form.optionId) body.optionId = form.optionId;
-      if (form.text) body.text = form.text;
-      if (form.number !== "" && form.number != null)
-        body.number = Number(form.number);
-      if (form.date) {
-        body.date = form.date;
-      }
-      const sq = allQuestions.find(
-        (q: any) => String(q.id) === form.questionId
-      );
-      if (sq && isAddressQuestionType(questionMetaForAddress(sq))) {
-        if (form.addressProvince !== "" && form.addressProvince != null) {
-          const n = Number(form.addressProvince);
-          if (Number.isFinite(n)) {
-            const pText = provinceOptions.find((p) => p.code === n)?.name;
-            if (pText) body.province = pText;
-          }
-        }
-        if (form.addressWard !== "" && form.addressWard != null) {
-          const w = Number(form.addressWard);
-          if (Number.isFinite(w)) {
-            const wText = wardOptions.find((x) => x.code === w)?.name;
-            if (wText) body.ward = wText;
-          }
-        }
-      }
-    }
-    return body;
+  const apply = () => {
+    const next: ReportFilter = {};
+    const from = localDayBoundary(draft.from);
+    const to = localDayBoundary(draft.to, true);
+    if (from) next.from = from;
+    if (to) next.to = to;
+    (["questionId", "optionId", "text", "date", "province", "ward"] as const).forEach((key) => { if (draft[key].trim()) next[key] = draft[key].trim(); });
+    if (draft.number !== "" && Number.isFinite(Number(draft.number))) next.number = Number(draft.number);
+    onApply(next);
   };
 
-  const handleFilter = async () => {
-    const body = buildFilterBody();
-    const res = await fetch(`${API_RESPONSES}/survey/${surveyId}/filter`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
-      },
-      body: JSON.stringify(body),
-    });
+  const clear = () => { setDraft(EMPTY); onApply({}); };
 
-    setResult(await res.json());
-  };
-
-  /** POST — survey_{id}_analysis_filtered.xlsx */
-  const exportAnalysisFiltered = async () => {
-    const body = buildFilterBody();
-    const res = await fetch(
-      `${API_REPORTS}/survey/${surveyId}/analysis/filter`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify(body),
-      }
-    );
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `survey_${surveyId}_analysis_filtered.xlsx`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  // ======================
-  // UI
-  // ======================
-  return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 space-y-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-        Lọc phản hồi
-      </h2>
-
-      {/* ================= TIME ================= */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <DatePicker
-          id={`filter-from-date-${surveyId}`}
-          placeholder="dd/mm/yyyy"
-          defaultDate={form.fromDate || undefined}
-          onChange={(_, dateStr) =>
-            setForm((prev: typeof form) => ({
-              ...prev,
-              fromDate: dateStr as string,
-            }))
-          }
-        />
-
-        <DatePicker
-          id={`filter-to-date-${surveyId}`}
-          placeholder="dd/mm/yyyy"
-          defaultDate={form.toDate || undefined}
-          onChange={(_, dateStr) =>
-            setForm((prev: typeof form) => ({
-              ...prev,
-              toDate: dateStr as string,
-            }))
-          }
-        />
+  return <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+    <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="flex min-h-14 w-full items-center justify-between gap-4 px-4 text-left sm:px-5">
+      <span className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300"><SlidersHorizontal size={18} /></span><span><strong className="block text-sm text-gray-900 dark:text-white">Bộ lọc dữ liệu</strong><span className="text-xs text-gray-500 dark:text-gray-400">Áp dụng đồng thời cho phân tích câu hỏi và danh sách phản hồi</span></span></span>
+      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{activeCount ? `${activeCount} điều kiện` : open ? "Thu gọn" : "Mở bộ lọc"}</span>
+    </button>
+    {open && <div className="border-t border-gray-200 p-4 dark:border-gray-800 sm:p-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">Từ ngày<input className={control} type="date" value={draft.from} max={draft.to || undefined} onChange={(event) => set("from", event.target.value)} /></label>
+        <label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">Đến ngày<input className={control} type="date" value={draft.to} min={draft.from || undefined} onChange={(event) => set("to", event.target.value)} /></label>
+        <label className="grid gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 sm:col-span-2">Câu hỏi<select className={control} value={draft.questionId} onChange={(event) => set("questionId", event.target.value)}><option value="">Tất cả câu hỏi</option>{questions.map((question) => <option key={question.id} value={question.id}>{question.questionText ?? question.text ?? question.title ?? question.id}</option>)}</select></label>
+        {detailField}
       </div>
-
-      {/* ================= QUESTION ================= */}
-      <select
-        className="w-full border rounded-xl px-3 py-2"
-        value={form.questionId}
-        onChange={(e) =>
-          setForm({
-            ...form,
-            questionId: e.target.value,
-            optionId: "",
-            text: "",
-            number: "",
-            date: "",
-            addressProvince: "",
-            addressWard: "",
-          })
-        }
-      >
-        <option value="">-- Tất cả câu hỏi --</option>
-        {allQuestions.map((q: any) => (
-          <option key={q.id} value={q.id}>
-            {q.questionText}
-          </option>
-        ))}
-      </select>
-
-      {/* ================= INPUT ================= */}
-      {selectedQuestion && (
-        <div className="space-y-2">
-          {isChoiceQuestionTypeId(selectedQuestion.questionTypeId) &&
-            selectedQuestion.options?.length > 0 && (
-            <select
-              className="w-full border rounded-xl px-3 py-2"
-              value={form.optionId}
-              onChange={(e) =>
-                setForm({ ...form, optionId: e.target.value })
-              }
-            >
-              <option value="">-- Chọn đáp án --</option>
-              {selectedQuestion.options.map((o: any) => (
-                <option key={o.id} value={o.id}>
-                  {o.optionText}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {isAddressQuestionType(questionMetaForAddress(selectedQuestion)) && (
-            <div className="space-y-2 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-              <p className="text-xs text-gray-500">
-                Lọc theo địa chỉ (để trống = không lọc theo tỉnh/xã)
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <SearchableCodeSelect
-                  className="[&_input]:rounded-xl"
-                  aria-label="Tỉnh / Thành phố (lọc)"
-                  placeholder="Gõ tìm tỉnh/thành…"
-                  options={provinceOptions.map((p) => ({
-                    code: p.code,
-                    name: p.name,
-                  }))}
-                  value={
-                    form.addressProvince === "" ||
-                    !Number.isFinite(Number(form.addressProvince))
-                      ? null
-                      : Number(form.addressProvince)
-                  }
-                  onChange={(c) =>
-                    setForm({
-                      ...form,
-                      addressProvince: c == null ? "" : String(c),
-                      addressWard: "",
-                    })
-                  }
-                  allowNull
-                  nullLabel="— Tất cả tỉnh/thành —"
-                />
-                <SearchableCodeSelect
-                  className="[&_input]:rounded-xl"
-                  aria-label="Xã / Phường (lọc)"
-                  placeholder={
-                    !form.addressProvince
-                      ? "Chọn tỉnh trước"
-                      : wardsLoading
-                        ? "Đang tải…"
-                        : "Gõ tìm xã/phường…"
-                  }
-                  options={wardOptions.map((w) => ({
-                    code: w.code,
-                    name: w.name,
-                  }))}
-                  value={
-                    form.addressWard === "" ||
-                    !Number.isFinite(Number(form.addressWard))
-                      ? null
-                      : Number(form.addressWard)
-                  }
-                  onChange={(c) =>
-                    setForm({
-                      ...form,
-                      addressWard: c == null ? "" : String(c),
-                    })
-                  }
-                  disabled={
-                    !form.addressProvince ||
-                    wardsLoading ||
-                    wardOptions.length === 0
-                  }
-                  allowNull
-                  nullLabel="— Tất cả xã/phường —"
-                />
-              </div>
-            </div>
-          )}
-
-          {String(selectedQuestion.questionTypeCode).toUpperCase() === "TEXT" && (
-            <input
-              placeholder="Nhập text..."
-              className="w-full border rounded-xl px-3 py-2"
-              value={form.text}
-              onChange={(e) =>
-                setForm({ ...form, text: e.target.value })
-              }
-            />
-          )}
-
-          {String(selectedQuestion.questionTypeCode).toUpperCase() === "NUMBER" && (
-            <input
-              type="number"
-              className="w-full border rounded-xl px-3 py-2"
-              value={form.number}
-              onChange={(e) =>
-                setForm({ ...form, number: e.target.value })
-              }
-            />
-          )}
-
-          {String(selectedQuestion.questionTypeCode).toUpperCase() === "DATE" && (
-            <DatePicker
-              id={`filter-question-date-${surveyId}`}
-              placeholder="dd/mm/yyyy"
-              defaultDate={form.date || undefined}
-              onChange={(_, dateStr) =>
-                setForm((prev: typeof form) => ({
-                  ...prev,
-                  date: dateStr as string,
-                }))
-              }
-            />
-          )}
-        </div>
-      )}
-
-      {/* BUTTON */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <button
-          type="button"
-          onClick={handleFilter}
-          className="px-6 py-3 bg-brand-500 text-white rounded-xl"
-        >
-          Lọc dữ liệu
-        </button>
-        <button
-          type="button"
-          onClick={exportAnalysisFiltered}
-          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm"
-        >
-          Xuất Excel phân tích (theo bộ lọc)
-        </button>
-      </div>
-
-      {/* ================= RESULT (TABLE) ================= */}
-      {(() => {
-        const preview =
-          result.find((r) => r.answers && r.answers.length > 0)?.answers ||
-          result[0]?.answers ||
-          [];
-
-        return (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              {/* HEAD */}
-              <thead className="bg-gray-50/50 dark:bg-gray-800/50 text-[11px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">
-                <tr className="border-b border-gray-100 dark:border-gray-800">
-                  <th className="px-6 py-4">STT</th>
-                  <th className="px-6 py-4">Thời gian</th>
-
-                  {preview.map((q: any, i: number) => (
-                    <th key={i} className="px-6 py-4">
-                      {q.question}
-                    </th>
-                  ))}
-
-                  <th className="px-6 py-4 text-center">Xem</th>
-                </tr>
-              </thead>
-
-              {/* BODY */}
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                {result.map((r, i) => (
-                  <tr
-                    key={i}
-                    className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors"
-                  >
-                    {/* STT */}
-                    <td className="px-6 py-4 text-xs text-gray-400 font-mono">
-                      {i + 1}
-                    </td>
-
-                    {/* TIME */}
-                    <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
-                      {r.submittedAt
-                        ? new Date(r.submittedAt).toLocaleString("vi-VN")
-                        : "-"}
-                    </td>
-
-                    {/* ANSWERS */}
-                    {preview.map((col: any, idx: number) => (
-                      <td
-                        key={idx}
-                        className="px-6 py-4 text-gray-700 dark:text-gray-300"
-                      >
-                        <ResponseAnswerCell
-                          column={col}
-                          answer={r.answers?.[idx]}
-                        />
-                      </td>
-                    ))}
-
-                    {/* ACTION */}
-                    <td className="px-6 py-4">
-                      <div className="flex justify-center">
-                        <button
-                          onClick={() =>
-                            router.push(
-                              `/admin/survey/${r.responseId}/detail`
-                            )
-                          }
-                          className="p-2 text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-xl transition-all"
-                        >
-                          <FiEye size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {result.length === 0 && (
-              <div className="text-center py-12 text-gray-400 italic">
-                Chưa có dữ liệu phản hồi
-              </div>
-            )}
-          </div>
-        );
-      })()}
-    </div>
-  );
+      <div className="mt-5 flex flex-wrap items-center gap-2"><button type="button" onClick={apply} className="inline-flex h-11 items-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white hover:bg-brand-600"><Filter size={16} /> Áp dụng bộ lọc</button><button type="button" onClick={clear} disabled={!activeCount && Object.values(draft).every((item) => !item)} className="inline-flex h-11 items-center gap-2 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200"><RotateCcw size={16} /> Xóa lọc</button></div>
+    </div>}
+  </section>;
 }

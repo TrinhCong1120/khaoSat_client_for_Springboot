@@ -18,10 +18,34 @@ const getToken = () =>
   localStorage.getItem("token") ||
   sessionStorage.getItem("token");
 
+type QuestionTypeItem = { id: string; code: string; name: string };
+const typeOrder = ["TEXT", "SINGLE_CHOICE", "MULTIPLE_CHOICE", "NUMBER", "DATE", "ADDRESS"];
+
 export default function QuestionEditor({ page, survey, setSurvey }: any) {
   const [savingMap, setSavingMap] = useState<Record<string, string>>({});
+  const [availableTypes, setAvailableTypes] = useState<QuestionTypeItem[]>([]);
+  const [typeLoadError, setTypeLoadError] = useState(false);
 
-  const questionTypes = Array.from(
+  useEffect(() => {
+    const controller = new AbortController();
+    const token = getToken();
+    fetch(`${API_QUESTIONS}/types`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Không tải được loại câu hỏi (${response.status})`);
+        const types: QuestionTypeItem[] = await response.json();
+        if (!Array.isArray(types) || types.length === 0) throw new Error("Danh mục loại câu hỏi trống");
+        setAvailableTypes(types.sort((a, b) => typeOrder.indexOf(a.code) - typeOrder.indexOf(b.code)));
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") setTypeLoadError(true);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const existingTypes = Array.from(
     new Map(
       (survey.pages || [])
         .flatMap((surveyPage: any) => surveyPage.questions || [])
@@ -32,7 +56,8 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
           name: question.questionType?.name || String(question.questionTypeCode),
         }])
     ).values()
-  ) as Array<{ id: string; code: string; name: string }>;
+  ) as QuestionTypeItem[];
+  const questionTypes = availableTypes.length ? availableTypes : existingTypes;
   const typeCodeFor = (question: any) => String(
     question.questionTypeCode || question.questionType?.code ||
     questionTypes.find((type) => type.id === String(question.questionTypeId))?.code || ""
@@ -137,11 +162,11 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   };
 
   const persistQuestionOrder = async (ordered: any[]) => {
-    await Promise.all(
-      ordered.map((q: any, index: number) =>
-        saveQuestion({ ...q, orderIndex: index + 1, OrderIndex: index + 1 }, index + 1)
-      )
-    );
+    const previousOrder = new Map(questionsOrdered.map((question: any, index: number) => [String(question.id), getValidOrderIndex(question, index + 1)]));
+    for (const [index, question] of ordered.entries()) {
+      if (previousOrder.get(String(question.id)) == null || previousOrder.get(String(question.id)) === index + 1) continue;
+      await saveQuestion({ ...question, orderIndex: index + 1, OrderIndex: index + 1 }, index + 1);
+    }
   };
 
   // ======================
@@ -198,7 +223,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
 
     const defaultType = questionTypes[0];
     if (!defaultType) {
-      alert("Backend chưa cung cấp danh mục loại câu hỏi. Cần có ít nhất một câu hỏi hiện hữu hoặc endpoint QuestionType để tạo câu hỏi mới.");
+      alert("Chưa tải được danh mục loại câu hỏi từ máy chủ. Vui lòng thử lại.");
       return;
     }
     const res = await fetch(API_QUESTIONS, {
@@ -403,6 +428,7 @@ export default function QuestionEditor({ page, survey, setSurvey }: any) {
   // ======================
   return (
     <div>
+      {typeLoadError && <p role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">Không tải được danh mục loại câu hỏi đầy đủ từ máy chủ.</p>}
 
       {questionsOrdered.map((q: any, questionIndex: number) => (
         <div key={q.id} id={`survey-question-${q.id}`} className="scroll-mt-24">

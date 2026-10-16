@@ -19,6 +19,8 @@ type RuleDefinition = {
   parameters?: any[];
 };
 
+const catalogRequests = new Map<string, Promise<RuleDefinition[]>>();
+
 type QuestionOption = {
   id: string;
   optionText?: string;
@@ -284,54 +286,36 @@ export default function ValidationRulesEditor({ questionId, questionTypeId, ques
     setCatalogError("");
     setSaveState("idle");
     setSaveError("");
-    if (!code) return;
-    const controller = new AbortController();
+    if (!expanded || !code) return;
+    let active = true;
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-    fetch(`${API_VALIDATION_RULE_CATALOG}?questionType=${encodeURIComponent(code)}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      signal: controller.signal,
-    })
-      .then(async (response) => {
+    const cacheKey = `${code}:${questionTypeId}`;
+    let request = catalogRequests.get(cacheKey);
+    if (!request) {
+      request = fetch(`${API_VALIDATION_RULE_CATALOG}?questionType=${encodeURIComponent(code)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      }).then(async (response) => {
         if (!response.ok) throw new Error("catalog");
-        return response.json();
-      })
-      .then((body) => {
-        const next = (Array.isArray(body) ? body : body?.rules || [])
+        const body = await response.json();
+        return (Array.isArray(body) ? body : body?.rules || [])
           .filter((rule: any) => rule?.code)
           .map((rule: any) => catalogDefinition(rule, questionTypeId));
+      });
+      catalogRequests.set(cacheKey, request);
+      request.catch(() => catalogRequests.delete(cacheKey));
+    }
+    request
+      .then((next) => {
+        if (!active) return;
         setCatalog(next);
         setCatalogError("");
       })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+      .catch(() => {
+        if (!active) return;
         setCatalogError("Không tải được danh sách điều kiện từ máy chủ");
       });
-    return () => controller.abort();
-  }, [questionTypeCode, questionTypeId]);
-
-  useEffect(() => {
-    if (!questionId) return;
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-    fetch(`${API_QUESTIONS}/${questionId}/validation-rules`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("rules");
-        return response.json();
-      })
-      .then((body) => {
-        const apiRules = Array.isArray(body) ? body : body?.rules;
-        if (Array.isArray(apiRules)) onChange(apiRules.map(fromApiRule));
-        const nextRevision =
-          body?.validationRevision ??
-          body?.revision ??
-          body?.expectedRevision;
-        if (nextRevision != null && Number.isFinite(Number(nextRevision))) {
-          setEffectiveRevision(Number(nextRevision));
-        }
-      })
-      .catch(() => undefined);
-  }, [questionId]);
+    return () => { active = false; };
+  }, [expanded, questionTypeCode, questionTypeId]);
 
   const addRule = (type: string) => {
     const definition = definitions.find((item) => item.type === type) || definitionFor(questionTypeId, type);

@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import { FiArrowLeft, FiArrowRight, FiCheck, FiClock, FiLock } from "react-icons/fi";
 import DatePicker from "@/components/form/date-picker";
 import ProvinceWardSelect from "@/components/form/ProvinceWardSelect";
+import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import type { ProvinceWardValue } from "@/components/form/ProvinceWardSelect";
 import {
   buildPublicSurveySubmitAnswers,
@@ -13,6 +14,8 @@ import {
 } from "@/types/survey";
 import { isAddressQuestionType } from "@/lib/vietnam-address-api";
 import { API_PUBLIC_SURVEYS } from "@/lib/api";
+import { getMediaUrls, resolveMediaUrl } from "@/lib/media";
+import { getVisitorId } from "@/lib/site-visitor";
 
 type OptionMediaFile = {
   mediaType?: string | null;
@@ -26,6 +29,35 @@ type ChoiceOptionMedia = {
   mediaFiles?: OptionMediaFile[] | null;
 };
 
+type TrackingEventType =
+  | "SURVEY_VIEWED"
+  | "SURVEY_STARTED"
+  | "PAGE_VIEWED"
+  | "PAGE_COMPLETED"
+  | "SURVEY_SUBMIT_ATTEMPTED"
+  | "SURVEY_SUBMIT_FAILED"
+  | "SURVEY_RESUMED";
+
+const sendTrackingEvent = (
+  surveyRef: string,
+  sessionId: string,
+  eventType: TrackingEventType,
+  pageId: string | null = null,
+  eventId = crypto.randomUUID(),
+) => fetch(`${API_PUBLIC_SURVEYS}/${surveyRef}/events`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    eventId,
+    sessionId,
+    eventType,
+    pageId,
+    questionId: null,
+    clientOccurredAt: new Date().toISOString(),
+  }),
+  keepalive: true,
+}).catch(() => undefined);
+
 export default function PublicSurvey() {
   const { id } = useParams();
   const [survey, setSurvey] = useState<any>(null);
@@ -33,8 +65,35 @@ export default function PublicSurvey() {
   const [errors, setErrors] = useState<any>({});
   const [submitted, setSubmitted] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "not-found">("loading");
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "not-found" | "not-open" | "closed">("loading");
+  const [loadMessage, setLoadMessage] = useState("");
+  const [trackingSessionId, setTrackingSessionId] = useState("");
   const validationRequestRef = useRef(0);
+  const trackingStartedRef = useRef(false);
+  const surveyStartedEventRef = useRef(false);
+  const activeElapsedRef = useRef(0);
+  const activeSinceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const sync = () => {
+      const active = loadState === "ready" && !submitted &&
+        document.visibilityState === "visible" && document.hasFocus();
+      if (active && activeSinceRef.current == null) activeSinceRef.current = Date.now();
+      if (!active && activeSinceRef.current != null) {
+        activeElapsedRef.current += Date.now() - activeSinceRef.current;
+        activeSinceRef.current = null;
+      }
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("focus", sync);
+    window.addEventListener("blur", sync);
+    return () => {
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("blur", sync);
+    };
+  }, [loadState, submitted]);
 
   const parseSourceValueTokens = (sourceValue: string) =>
     String(sourceValue || "")
@@ -45,16 +104,7 @@ export default function PublicSurvey() {
   const hasNonBlank = (v: unknown) => String(v ?? "").trim().length > 0;
 
   const getOptionImageUrls = (option: ChoiceOptionMedia) => {
-    const mediaImages = Array.isArray(option?.mediaFiles)
-      ? option.mediaFiles
-          .filter((media) => String(media?.mediaType || "").toUpperCase() === "IMAGE")
-          .map((media) => media?.objectUrl)
-      : [];
-
-    return Array.from(new Set([
-      option?.imageUrl,
-      ...mediaImages,
-    ].filter((url): url is string => typeof url === "string" && url.trim().length > 0)));
+    return getMediaUrls(option, "IMAGE");
   };
 
   useEffect(() => {
@@ -65,11 +115,20 @@ export default function PublicSurvey() {
       .then(async (res) => {
         if (!res.ok) {
           if (res.status === 404) return null;
+          const body = await res.json().catch(() => null);
+          if (res.status === 409) return { unavailableState: "not-open", message: body?.message };
+          if (res.status === 410) return { unavailableState: "closed", message: body?.message };
           throw new Error(`Survey request failed: ${res.status}`);
         }
         return res.json();
       })
       .then((data) => {
+        if (data?.unavailableState) {
+          setSurvey(null);
+          setLoadMessage(data.message || "Khảo sát hiện chưa thể truy cập.");
+          setLoadState(data.unavailableState);
+          return;
+        }
         const surveyData = data?.data ?? data;
         if (!surveyData || typeof surveyData !== "object" || !Array.isArray(surveyData.pages)) {
           setSurvey({ pages: [], conditions: [] });
@@ -87,6 +146,60 @@ export default function PublicSurvey() {
         setLoadState("not-found");
       });
   }, [id]);
+
+  useEffect(() => {
+    if (!id || loadState !== "ready" || !survey?.id || trackingStartedRef.current) return;
+    trackingStartedRef.current = true;
+
+    const surveyRef = String(id);
+    const requestKey = `survey-session-request:${surveyRef}`;
+    const expiryKey = `survey-session-expiry:${surveyRef}`;
+    const storedExpiry = Date.parse(sessionStorage.getItem(expiryKey) || "");
+    const requestId = Number.isFinite(storedExpiry) && storedExpiry > Date.now()
+      ? sessionStorage.getItem(requestKey) || crypto.randomUUID()
+      : crypto.randomUUID();
+    sessionStorage.setItem(requestKey, requestId);
+
+    fetch(`${API_PUBLIC_SURVEYS}/${surveyRef}/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requestId,
+        visitorId: getVisitorId(),
+        deviceType: /iPad|Tablet|Android(?!.*Mobile)/i.test(navigator.userAgent) ? "TABLET"
+          : /Mobi|iPhone|Android/i.test(navigator.userAgent) ? "MOBILE" : "DESKTOP",
+        utmSource: new URLSearchParams(window.location.search).get("utm_source"),
+        utmMedium: new URLSearchParams(window.location.search).get("utm_medium"),
+        utmCampaign: new URLSearchParams(window.location.search).get("utm_campaign"),
+        referrerHost: (() => { try { return document.referrer ? new URL(document.referrer).hostname : null; } catch { return null; } })(),
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Tracking session HTTP ${response.status}`);
+        const body = await response.json();
+        return body?.data ?? body;
+      })
+      .then(async (session) => {
+        if (!session?.sessionId) return;
+        const sessionId = String(session.sessionId);
+        setTrackingSessionId(sessionId);
+        if (session.expiresAt) sessionStorage.setItem(expiryKey, String(session.expiresAt));
+        if (session.status === "ABANDONED") {
+          await sendTrackingEvent(surveyRef, sessionId, "SURVEY_RESUMED");
+        }
+        const viewEventKey = `survey-view-event:${surveyRef}:${sessionId}`;
+        const viewEventId = sessionStorage.getItem(viewEventKey) || crypto.randomUUID();
+        sessionStorage.setItem(viewEventKey, viewEventId);
+        await sendTrackingEvent(surveyRef, sessionId, "SURVEY_VIEWED", null, viewEventId);
+      })
+      .catch(() => undefined);
+  }, [id, loadState, survey?.id]);
+
+  useEffect(() => {
+    const pageId = survey?.pages?.[currentPage]?.id;
+    if (!id || !trackingSessionId || !pageId) return;
+    void sendTrackingEvent(String(id), trackingSessionId, "PAGE_VIEWED", String(pageId));
+  }, [currentPage, id, survey?.pages, trackingSessionId]);
 
   useEffect(() => {
     if (!survey?.pages) return;
@@ -180,6 +293,10 @@ export default function PublicSurvey() {
   };
 
   const updateAnswer = (qid: string, value: any, type: string) => {
+    if (!surveyStartedEventRef.current && id && trackingSessionId) {
+      surveyStartedEventRef.current = true;
+      void sendTrackingEvent(String(id), trackingSessionId, "SURVEY_STARTED");
+    }
     setAnswers((prev: any) => ({
       ...prev,
       [qid]: {
@@ -196,6 +313,10 @@ export default function PublicSurvey() {
   };
 
   const updateAddressAnswer = (qid: string, next: ProvinceWardValue) => {
+    if (!surveyStartedEventRef.current && id && trackingSessionId) {
+      surveyStartedEventRef.current = true;
+      void sendTrackingEvent(String(id), trackingSessionId, "SURVEY_STARTED");
+    }
     setAnswers((prev: any) => ({
       ...prev,
       [qid]: {
@@ -214,6 +335,10 @@ export default function PublicSurvey() {
   };
 
   const handleOption = (qid: string, optionId: string, multiple: boolean) => {
+    if (!surveyStartedEventRef.current && id && trackingSessionId) {
+      surveyStartedEventRef.current = true;
+      void sendTrackingEvent(String(id), trackingSessionId, "SURVEY_STARTED");
+    }
     setAnswers((prev: any) => {
       const current = prev[qid]?.optionIds || [];
 
@@ -373,7 +498,7 @@ export default function PublicSurvey() {
       });
       const body = await response.json().catch(() => ({}));
       if (requestId !== validationRequestRef.current) return { valid: true, fieldErrors: [] };
-      if (response.status === 409) {
+      if (response.status === 409 && body?.code === "SURVEY_REVISION_CONFLICT") {
         window.alert("Phiên khảo sát đã thay đổi. Vui lòng tải lại trang.");
         if (!retriedAfterRevisionConflict) {
           try {
@@ -450,6 +575,10 @@ export default function PublicSurvey() {
     const pageQuestions = survey.pages[currentPage]?.questions || [];
     const result = await validateAnswersWithBackend(pageQuestions);
     if (result?.valid) {
+      const pageId = survey.pages[currentPage]?.id;
+      if (id && trackingSessionId && pageId) {
+        void sendTrackingEvent(String(id), trackingSessionId, "PAGE_COMPLETED", String(pageId));
+      }
       goToPage(currentPage + 1);
       return;
     }
@@ -469,10 +598,20 @@ export default function PublicSurvey() {
     localStorage.setItem(requestKey, requestId);
 
     try {
+      if (id && trackingSessionId) {
+        void sendTrackingEvent(String(id), trackingSessionId, "SURVEY_SUBMIT_ATTEMPTED");
+      }
       const res = await fetch(`${API_PUBLIC_SURVEYS}/${id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, answers: payload }),
+        body: JSON.stringify({
+          requestId,
+          surveyRevision: survey.validationRevision ?? survey.revision,
+          sessionId: trackingSessionId || undefined,
+          activeDurationMs: Math.min(86400000, activeElapsedRef.current +
+            (activeSinceRef.current == null ? 0 : Date.now() - activeSinceRef.current)),
+          answers: payload,
+        }),
       });
 
       if (res.ok) {
@@ -514,27 +653,45 @@ export default function PublicSurvey() {
       } else {
         alert(`Submit lỗi (${res.status})`);
       }
+      if (id && trackingSessionId) {
+        void sendTrackingEvent(String(id), trackingSessionId, "SURVEY_SUBMIT_FAILED");
+      }
     } catch {
+      if (id && trackingSessionId) {
+        void sendTrackingEvent(String(id), trackingSessionId, "SURVEY_SUBMIT_FAILED");
+      }
       alert("Không gửi được khảo sát. Vui lòng kiểm tra mạng rồi thử lại; mã yêu cầu hiện tại sẽ được giữ để tránh lưu trùng.");
     }
   };
 
   if (loadState === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10 dark:bg-gray-950">
-        <div className="text-sm text-gray-600 dark:text-gray-300" role="status">Đang tải khảo sát…</div>
+      <main className="flex min-h-screen items-center justify-center bg-[#f4f8f8] px-4 py-10 dark:bg-[#071319]">
+        <div className="flex items-center gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300" role="status"><span className="size-5 animate-spin rounded-full border-2 border-[#0d5c63] border-t-transparent" />Đang tải khảo sát…</div>
       </main>
     );
   }
 
   if (loadState === "not-found" || !survey) {
+    if (loadState === "not-open" || loadState === "closed") {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-[#f4f8f8] px-4 py-10 text-slate-900 dark:bg-[#071319] dark:text-white">
+          <section className="w-full max-w-lg rounded-2xl bg-white px-6 py-12 text-center shadow-[0_24px_70px_rgba(7,31,42,.14)] dark:bg-slate-900 sm:px-12">
+            <div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{loadState === "not-open" ? <FiClock size={26} /> : <FiLock size={26} />}</div>
+            <h1 className="text-3xl font-black tracking-[-0.03em]">{loadState === "not-open" ? "Khảo sát chưa mở" : "Khảo sát đã đóng"}</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{loadMessage}</p>
+            <Link href="/" className="mt-7 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#0d5c63] px-5 text-sm font-bold text-white transition hover:bg-[#0a4b51]"><FiArrowLeft /> Về trang chủ</Link>
+          </section>
+        </main>
+      );
+    }
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10 text-gray-800 dark:bg-gray-950 dark:text-gray-100">
-        <section className="w-full max-w-md rounded-xl border border-gray-200 bg-white px-6 py-10 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-10">
-          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-full bg-brand-50 text-2xl font-bold text-brand-700 dark:bg-brand-950 dark:text-brand-300">404</div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Khảo sát không tồn tại</h1>
-          <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Khảo sát bạn đang truy cập không tồn tại, đã bị xóa hoặc đường dẫn không chính xác.</p>
-          <Link href="/survey" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600">Về danh sách khảo sát</Link>
+      <main className="flex min-h-screen items-center justify-center bg-[#f4f8f8] px-4 py-10 text-slate-900 dark:bg-[#071319] dark:text-white">
+        <section className="w-full max-w-lg rounded-2xl bg-white px-6 py-12 text-center shadow-[0_24px_70px_rgba(7,31,42,.14)] dark:bg-slate-900 sm:px-12">
+          <div className="mx-auto mb-6 grid size-16 place-items-center rounded-2xl bg-[#dff2ec] text-xl font-black text-[#0d5c63] dark:bg-[#0d5c63]/20 dark:text-emerald-200">404</div>
+          <h1 className="text-3xl font-black tracking-[-0.03em]">Khảo sát không tồn tại</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">Khảo sát có thể đã bị xóa, chưa được xuất bản hoặc đường dẫn không chính xác.</p>
+          <Link href="/" className="mt-7 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#0d5c63] px-5 text-sm font-bold text-white transition hover:bg-[#0a4b51]"><FiArrowLeft /> Về trang chủ</Link>
         </section>
       </main>
     );
@@ -542,13 +699,12 @@ export default function PublicSurvey() {
 
   if (submitted) {
     return (
-      <main className="min-h-screen bg-gray-50 px-4 py-10 text-gray-800 dark:bg-gray-950 dark:text-gray-100">
-        <div className="mx-auto max-w-3xl rounded-xl border border-gray-200 bg-white px-5 py-12 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-8">
-          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-full bg-success-100 text-3xl font-bold text-success-700 dark:bg-success-950 dark:text-success-300">
-            ✓
-          </div>
-          <h1 className="mb-2 text-2xl font-semibold text-gray-900 dark:text-white">Cảm ơn bạn!</h1>
-          <p className="text-gray-600 dark:text-gray-300">Câu trả lời của bạn đã được ghi nhận.</p>
+      <main className="flex min-h-screen items-center bg-[#f4f8f8] px-4 py-10 text-slate-900 dark:bg-[#071319] dark:text-white">
+        <div className="mx-auto w-full max-w-xl rounded-2xl bg-white px-6 py-14 text-center shadow-[0_24px_70px_rgba(7,31,42,.14)] dark:bg-slate-900 sm:px-12">
+          <div className="mx-auto mb-6 grid size-16 place-items-center rounded-2xl bg-[#dff2ec] text-[#0d5c63] dark:bg-[#0d5c63]/20 dark:text-emerald-200"><FiCheck size={28} strokeWidth={3} /></div>
+          <h1 className="text-3xl font-black tracking-[-0.03em]">Cảm ơn bạn đã chia sẻ</h1>
+          <p className="mt-3 text-slate-600 dark:text-slate-300">Câu trả lời đã được ghi nhận thành công.</p>
+          <Link href="/" className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-5 text-sm font-bold text-slate-700 hover:border-[#0d5c63] hover:text-[#0d5c63] dark:border-slate-700 dark:text-slate-200"><FiArrowLeft /> Về trang chủ</Link>
         </div>
       </main>
     );
@@ -564,32 +720,20 @@ export default function PublicSurvey() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex min-h-14 items-center justify-between border-b border-gray-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 sm:hidden">
-        <Link href="/survey" className="flex min-w-0 items-center gap-2.5" aria-label="Về trang khảo sát">
-          <Image
-            src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Emblem_of_Vietnam.svg/960px-Emblem_of_Vietnam.svg.png"
-            alt="Biểu trưng Sở Xây dựng Đà Nẵng"
-            width={36}
-            height={36}
-            priority
-            className="h-9 w-9 shrink-0 object-contain"
-          />
-          <span className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-white">Sở Xây dựng Đà Nẵng</span>
-        </Link>
-        <Link href="/" className="ml-3 shrink-0 rounded-md px-2.5 py-2 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950">
-          Trang chủ
-        </Link>
+      <header className="sticky top-0 z-40 flex min-h-14 items-center justify-between border-b border-gray-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
+        <Link href="/survey" className="flex min-w-0 items-center gap-2.5" aria-label="Về trang khảo sát"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-500 text-white"><FiCheck size={17} /></span><span className="truncate text-sm font-semibold text-gray-900 dark:text-white">Khảo sát</span></Link>
+        <div className="flex items-center gap-1"><ThemeToggleButton /><Link href="/" className="shrink-0 rounded-md px-2.5 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950">Trang chủ</Link></div>
       </header>
       <main className="min-h-screen bg-gray-50 px-3 py-4 text-gray-800 dark:bg-gray-950 dark:text-gray-100 sm:px-5 sm:py-10">
       <div className="mx-auto w-full max-w-3xl">
         <section className="mb-5 rounded-xl border border-gray-200 border-t-4 border-t-brand-500 bg-white p-5 shadow-sm dark:border-gray-800 dark:border-t-brand-400 dark:bg-gray-900 sm:p-7">
-          <h1 className="mb-2 text-xl font-semibold leading-tight text-gray-900 dark:text-white sm:text-2xl">{survey.title || "Khảo sát mức độ hài lòng"}</h1>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h1 className="text-xl font-semibold leading-tight text-gray-900 dark:text-white sm:text-2xl">{survey.title || "Khảo sát mức độ hài lòng"}</h1>{survey.shareCode && <span className="text-xs font-medium text-gray-400">Mã: {survey.shareCode}</span>}</div>
           <p className="leading-7 text-gray-600 dark:text-gray-300">
             {survey.description || "Cảm ơn bạn đã dành thời gian tham gia khảo sát. Ý kiến của bạn sẽ giúp chúng tôi cải thiện chất lượng dịch vụ."}
           </p>
-          {survey.imageUrl && <img src={survey.imageUrl} alt="" className="mt-4 max-h-72 w-full rounded-lg object-contain" />}
-          {survey.videoUrl && <video src={survey.videoUrl} controls className="mt-4 max-h-72 w-full rounded-lg" />}
-          {survey.audioUrl && <audio src={survey.audioUrl} controls className="mt-4 w-full" />}
+          {getMediaUrls(survey, "IMAGE").map((url, index) => <img key={`${url}-${index}`} src={resolveMediaUrl(url)} alt="" className="mt-4 max-h-72 w-full rounded-lg object-contain" />)}
+          {getMediaUrls(survey, "VIDEO").map((url, index) => <video key={`${url}-${index}`} src={resolveMediaUrl(url)} controls className="mt-4 max-h-72 w-full rounded-lg" />)}
+          {getMediaUrls(survey, "AUDIO").map((url, index) => <audio key={`${url}-${index}`} src={resolveMediaUrl(url)} controls className="mt-4 w-full" />)}
           <div className="mb-2 mt-6 flex justify-between text-sm text-gray-600 dark:text-gray-300">
             <span>Trang {Math.min(currentPage + 1, pageCount)} / {pageCount}</span>
             <span>{Math.round(((currentPage + 1) / pageCount) * 100)}%</span>
@@ -606,9 +750,9 @@ export default function PublicSurvey() {
           <div className="mx-1 mb-3 mt-[26px]">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">{page?.title || `Thông tin khảo sát`}</h2>
             {page?.description && <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{page.description}</p>}
-            {page?.imageUrl && <img src={page.imageUrl} alt="" className="mt-3 max-h-64 w-full rounded-lg object-contain" />}
-            {page?.videoUrl && <video src={page.videoUrl} controls className="mt-3 max-h-64 w-full rounded-lg" />}
-            {page?.audioUrl && <audio src={page.audioUrl} controls className="mt-3 w-full" />}
+            {getMediaUrls(page, "IMAGE").map((url, index) => <img key={`${url}-${index}`} src={resolveMediaUrl(url)} alt="" className="mt-3 max-h-64 w-full rounded-lg object-contain" />)}
+            {getMediaUrls(page, "VIDEO").map((url, index) => <video key={`${url}-${index}`} src={resolveMediaUrl(url)} controls className="mt-3 max-h-64 w-full rounded-lg" />)}
+            {getMediaUrls(page, "AUDIO").map((url, index) => <audio key={`${url}-${index}`} src={resolveMediaUrl(url)} controls className="mt-3 w-full" />)}
           </div>
 
           {pageQuestions.map((q: any, questionIndex: number) => {
@@ -653,7 +797,7 @@ export default function PublicSurvey() {
               >
                 {!enabled && (
                   <div className="mb-4 flex items-start gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-100 px-4 py-3 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                    <div aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gray-200 text-base dark:bg-gray-700">🔒</div>
+                    <div aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gray-200 text-base dark:bg-gray-700"><FiLock /></div>
                     <div className="min-w-0">
                       <div className="mb-0.5 text-sm font-semibold text-gray-700 dark:text-gray-200">Câu hỏi được bỏ qua</div>
                       <div className="text-[13px] leading-snug text-gray-500 dark:text-gray-400">Câu hỏi này không áp dụng với lựa chọn hiện tại.</div>
@@ -666,9 +810,9 @@ export default function PublicSurvey() {
                     {q.description}
                   </div>
                 )}
-                {q.imageUrl && <img src={q.imageUrl} alt="" className="mb-4 max-h-64 w-full rounded-lg object-contain" />}
-                {q.videoUrl && <video src={q.videoUrl} controls className="mb-4 max-h-64 w-full rounded-lg" />}
-                {q.audioUrl && <audio src={q.audioUrl} controls className="mb-4 w-full" />}
+                {getMediaUrls(q, "IMAGE").map((url, index) => <img key={`${url}-${index}`} src={resolveMediaUrl(url)} alt="" className="mb-4 max-h-64 w-full rounded-lg object-contain" />)}
+                {getMediaUrls(q, "VIDEO").map((url, index) => <video key={`${url}-${index}`} src={resolveMediaUrl(url)} controls className="mb-4 max-h-64 w-full rounded-lg" />)}
+                {getMediaUrls(q, "AUDIO").map((url, index) => <audio key={`${url}-${index}`} src={resolveMediaUrl(url)} controls className="mb-4 w-full" />)}
 
                 <div id={`question-label-${q.id}`} className={`break-words text-base font-semibold leading-7 ${enabled ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"}`}>
                   {questionOffset + questionIndex + 1}. {q.questionText}
@@ -726,7 +870,7 @@ export default function PublicSurvey() {
                                         {optionImageUrls.slice(0, 4).map((url, index) => (
                                           <span key={`${url}-${index}`} className="relative min-h-0 min-w-0 overflow-hidden">
                                             <img
-                                              src={url}
+                                              src={resolveMediaUrl(url)}
                                               alt={o.optionText ? `${o.optionText} ${index + 1}` : `Ảnh đáp án ${index + 1}`}
                                               loading="lazy"
                                               className="h-full w-full object-cover"
@@ -825,9 +969,9 @@ export default function PublicSurvey() {
                 <button
                   type="button"
                   onClick={() => goToPage(currentPage - 1)}
-                  className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 min-[420px]:w-auto"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 min-[420px]:w-auto"
                 >
-                  ← Quay lại
+                  <FiArrowLeft /> Quay lại
                 </button>
               )}
             </div>
@@ -836,16 +980,16 @@ export default function PublicSurvey() {
                 type="button"
                 data-validation-navigation="true"
                 onClick={handleNextPage}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-500 px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-600 min-[420px]:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-600 min-[420px]:w-auto"
               >
-                Tiếp tục →
+                Tiếp tục <FiArrowRight />
               </button>
             ) : (
               <button
                 type="button"
                 data-validation-navigation="true"
                 onClick={handleSubmit}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-500 px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-600 min-[420px]:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-600 min-[420px]:w-auto"
               >
                 Gửi khảo sát
               </button>

@@ -14,6 +14,7 @@ import {
 } from "@/lib/apikeys";
 import { API_CHATBOT } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
+import type { PagedResult } from "@/types/report";
 
 const CHATBOT_BASE = API_CHATBOT;
 
@@ -22,8 +23,8 @@ export default function ApiKeysUserPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const pageSize = 10;
-  const paginatedKeys = keys.slice((page - 1) * pageSize, page * pageSize);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -41,7 +42,7 @@ export default function ApiKeysUserPage() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(`${CHATBOT_BASE}/apikeys`, {
+      const res = await fetch(`${CHATBOT_BASE}/apikeys?page=${page}`, {
         headers: apikeysAuthHeadersJson(),
       });
       if (res.status === 401) {
@@ -54,14 +55,19 @@ export default function ApiKeysUserPage() {
         throw new Error(apikeysErrorMessage(data, `Lỗi ${res.status}`));
       }
 
-      const arr = Array.isArray(data) ? data : [];
-      setKeys(arr.map((x) => normalizeApiKeyRow(x as Record<string, unknown>)));
+      const result = data as PagedResult<Record<string, unknown>>;
+      if (result.totalPages > 0 && page > result.totalPages) {
+        setPage(result.totalPages);
+        return;
+      }
+      setKeys(result.content.map(normalizeApiKeyRow));
+      setTotal(result.totalElements);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Lỗi tải dữ liệu");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     void fetchKeys();
@@ -205,7 +211,7 @@ export default function ApiKeysUserPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedKeys.map((row) => (
+                keys.map((row) => (
                   <tr
                     key={row.id}
                     className="border-b border-gray-100 dark:border-gray-800/80"
@@ -244,8 +250,8 @@ export default function ApiKeysUserPage() {
               )}
             </tbody>
           </table></div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">{keys.length === 0 ? <div className="px-4 py-8 text-center text-sm text-gray-500">Chưa có key.</div> : paginatedKeys.map((row) => <article key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-sm font-semibold">{row.prefix}</p><p className="mt-1 truncate text-sm text-gray-600 dark:text-gray-300">{row.name || "—"}</p></div><span className={`rounded-full px-2 py-1 text-[11px] font-medium ${row.revoked ? "bg-red-50 text-red-600" : row.isActive ? "bg-success-50 text-success-600" : "bg-gray-100 text-gray-500"}`}>{row.revoked ? "Đã thu hồi" : row.isActive ? "Đang hoạt động" : "Tạm tắt"}</span></div><p className="text-xs text-gray-500">Cập nhật: {row.updatedAt || row.createdAt || "—"}</p><div className="flex gap-4 text-xs"><button type="button" className="font-medium text-brand-600 disabled:opacity-40" onClick={() => { setEditRow(row); setEditName(row.name); setEditActive(row.isActive); }} disabled={row.revoked}>Sửa</button><button type="button" className="font-medium text-red-600 disabled:opacity-40" onClick={() => void revoke(row)} disabled={row.revoked}>Thu hồi</button></div></article>)}</div>
-          <Pagination page={page} pageSize={pageSize} total={keys.length} onPageChange={setPage} />
+          <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">{keys.length === 0 ? <div className="px-4 py-8 text-center text-sm text-gray-500">Chưa có key.</div> : keys.map((row) => <article key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-sm font-semibold">{row.prefix}</p><p className="mt-1 truncate text-sm text-gray-600 dark:text-gray-300">{row.name || "—"}</p></div><span className={`rounded-full px-2 py-1 text-[11px] font-medium ${row.revoked ? "bg-red-50 text-red-600" : row.isActive ? "bg-success-50 text-success-600" : "bg-gray-100 text-gray-500"}`}>{row.revoked ? "Đã thu hồi" : row.isActive ? "Đang hoạt động" : "Tạm tắt"}</span></div><p className="text-xs text-gray-500">Cập nhật: {row.updatedAt || row.createdAt || "—"}</p><div className="flex gap-4 text-xs"><button type="button" className="font-medium text-brand-600 disabled:opacity-40" onClick={() => { setEditRow(row); setEditName(row.name); setEditActive(row.isActive); }} disabled={row.revoked}>Sửa</button><button type="button" className="font-medium text-red-600 disabled:opacity-40" onClick={() => void revoke(row)} disabled={row.revoked}>Thu hồi</button></div></article>)}</div>
+          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
         </div>
       )}
 

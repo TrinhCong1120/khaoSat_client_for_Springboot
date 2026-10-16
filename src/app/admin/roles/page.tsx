@@ -7,6 +7,7 @@ import RoleFormModal from "@/components/roles/RoleFormModal";
 import { PlusIcon } from "@/icons";
 import { API_ROLES } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
+import type { PagedResult } from "@/types/report";
 
 export interface Role {
   id: string;
@@ -23,27 +24,33 @@ export default function RolesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const pageSize = 10;
-  const paginatedRoles = roles.slice((page - 1) * pageSize, page * pageSize);
 
   const fetchRoles = useCallback(async () => {
     try {
       setLoading(true);
 
-      const res = await fetch(API_ROLES, {
+      const res = await fetch(`${API_ROLES}/page?page=${page}`, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
       });
 
-      const data = await res.json();
-      setRoles(data);
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data: PagedResult<Role> = await res.json();
+      if (data.totalPages > 0 && page > data.totalPages) {
+        setPage(data.totalPages);
+        return;
+      }
+      setRoles(data.content);
+      setTotal(data.totalElements);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     fetchRoles();
@@ -59,8 +66,8 @@ export default function RolesPage() {
       },
     });
 
-    setRoles((prev) => prev.filter((r) => r.id !== id));
-    setPage((current) => Math.min(current, Math.max(1, Math.ceil((roles.length - 1) / pageSize))));
+    if (roles.length === 1 && page > 1) setPage(page - 1);
+    else await fetchRoles();
   };
 
   return (
@@ -101,14 +108,14 @@ export default function RolesPage() {
           ) : (
             <>
               <RoleTable
-                roles={paginatedRoles}
+                roles={roles}
                 onEdit={(r) => {
                   setEditingRole(r);
                   setIsModalOpen(true);
                 }}
                 onDelete={handleDelete}
               />
-              <Pagination page={page} pageSize={pageSize} total={roles.length} onPageChange={setPage} />
+              <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
             </>
           )}
         </div>

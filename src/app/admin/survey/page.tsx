@@ -11,14 +11,18 @@ import { API_SURVEYS } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
 import SurveyAccessModal from "@/components/surveys/SurveyAccessModal";
 import SurveyNameConfirmationModal from "@/components/surveys/SurveyNameConfirmationModal";
+import SurveyPublicationModal, { type PublishableSurvey, type SurveyStatus } from "@/components/surveys/SurveyPublicationModal";
 import { getUser } from "@/lib/auth";
+import type { PagedResult } from "@/types/report";
 
 export interface Survey {
   id: string;
+  shareCode?: string | null;
   title: string;
-  description: string;
-  /** Không có từ API cũ → coi như đang mở */
-  isActive?: boolean;
+  description: string | null;
+  status?: SurveyStatus | string | null;
+  openAt?: string | null;
+  closeAt?: string | null;
   creatorUser?: string | null;
   creatorUserId?: string | null;
 }
@@ -31,14 +35,14 @@ export default function SurveyPage() {
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [accessSurvey, setAccessSurvey] = useState<Survey | null>(null);
+  const [publicationSurvey, setPublicationSurvey] = useState<Survey | null>(null);
   const [deleteSurvey, setDeleteSurvey] = useState<Survey | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const pageSize = 10;
-  const paginatedSurveys = surveys.slice((page - 1) * pageSize, page * pageSize);
 
   const router = useRouter();
   const currentUser = getUser();
@@ -58,26 +62,26 @@ export default function SurveyPage() {
     try {
       setLoading(true);
 
-      const res = await fetch(API_SURVEYS, {
+      const res = await fetch(`${API_SURVEYS}/page?page=${page}`, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
       });
 
-      const raw = await res.json();
-      const data: Survey[] = Array.isArray(raw)
-        ? raw.map((s: Survey & { IsActive?: boolean }) => ({
-            ...s,
-            isActive: s.isActive ?? s.IsActive ?? true,
-          }))
-        : [];
-      setSurveys(data);
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data: PagedResult<Survey> = await res.json();
+      if (data.totalPages > 0 && page > data.totalPages) {
+        setPage(data.totalPages);
+        return;
+      }
+      setSurveys(data.content);
+      setTotal(data.totalElements);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     fetchSurveys();
@@ -96,9 +100,9 @@ export default function SurveyPage() {
         throw new Error(message || `Không xóa được khảo sát (${response.status})`);
       }
 
-      setSurveys((prev) => prev.filter((item) => item.id !== survey.id));
-      setPage((current) => Math.min(current, Math.max(1, Math.ceil((surveys.length - 1) / pageSize))));
       setDeleteSurvey(null);
+      if (surveys.length === 1 && page > 1) setPage(page - 1);
+      else await fetchSurveys();
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Không xóa được khảo sát.");
     } finally {
@@ -106,36 +110,9 @@ export default function SurveyPage() {
     }
   };
 
-  const handleToggleActive = async (id: string, nextActive: boolean) => {
-    const token = getToken();
-    if (!token) {
-      alert("Phiên đăng nhập hết hạn.");
-      return;
-    }
-    setTogglingId(id);
-    try {
-      const res = await fetch(`${API_SURVEYS}/${id}/status`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ isActive: nextActive }),
-      });
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        alert(t || `Không cập nhật được trạng thái (${res.status})`);
-        return;
-      }
-      setSurveys((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, isActive: nextActive } : s))
-      );
-    } catch (e) {
-      console.error(e);
-      alert("Lỗi mạng khi cập nhật trạng thái.");
-    } finally {
-      setTogglingId(null);
-    }
+  const handlePublicationChanged = (updated: PublishableSurvey) => {
+    setSurveys((current) => current.map((survey) => survey.id === updated.id ? { ...survey, ...updated } : survey));
+    setPublicationSurvey((current) => current?.id === updated.id ? { ...current, ...updated } : current);
   };
 
   return (
@@ -171,17 +148,16 @@ export default function SurveyPage() {
         ) : (
           <>
             <SurveyTable
-              surveys={paginatedSurveys}
-              togglingId={togglingId}
+              surveys={surveys}
               onEdit={(id) => router.push(`/admin/survey/${id}/edit`)}
               onDelete={(survey) => { setDeleteError(""); setDeleteSurvey(survey); }}
-              onToggleActive={handleToggleActive}
+              onManagePublication={setPublicationSurvey}
               onManageAccess={(survey) => canManageAccess(survey) && setAccessSurvey(survey)}
               canManageAccess={canManageAccess}
               canEdit={canEdit}
               canDelete={canDelete}
             />
-            <Pagination page={page} pageSize={pageSize} total={surveys.length} onPageChange={setPage} />
+            <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
           </>
         )}
       </div>
@@ -197,6 +173,13 @@ export default function SurveyPage() {
           survey={accessSurvey}
           onClose={() => setAccessSurvey(null)}
           onChanged={fetchSurveys}
+        />
+      )}
+      {publicationSurvey && (
+        <SurveyPublicationModal
+          survey={publicationSurvey}
+          onClose={() => setPublicationSurvey(null)}
+          onChanged={handlePublicationChanged}
         />
       )}
       {deleteSurvey && (

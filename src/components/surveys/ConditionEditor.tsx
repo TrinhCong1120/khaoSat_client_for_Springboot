@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { FiEdit2, FiPlus, FiTrash2, FiX } from "react-icons/fi";
 import SearchableCodeSelect from "@/components/form/SearchableCodeSelect";
 import { isAddressQuestionType } from "@/lib/vietnam-address-api";
-import { API_CONDITIONS, API_PROVINCES, API_SURVEYS } from "@/lib/api";
+import { API_CONDITIONS, API_PROVINCES } from "@/lib/api";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -139,16 +139,6 @@ export default function ConditionEditor({
     setAddressWardCode(null);
   };
 
-  const reloadConditions = async () => {
-    const res = await fetch(`${API_SURVEYS}/${survey.id}`, {
-      headers: {
-        Authorization: `Bearer ${getToken()}`,
-      },
-    });
-    const data = await res.json();
-    setConditions(data.conditions || []);
-  };
-
   const toSourceValuePayload = () => {
     if (isSourceAddressQuestion) {
       const tokens = [
@@ -218,7 +208,10 @@ export default function ConditionEditor({
       return;
     }
 
-    await reloadConditions();
+    const saved = await res.json();
+    setConditions((current: any[]) => editingId == null
+      ? [...current, saved]
+      : current.map((condition) => condition.id === editingId ? saved : condition));
     resetForm();
   };
 
@@ -228,14 +221,17 @@ export default function ConditionEditor({
   const deleteCondition = async (id: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa điều kiện này?")) return;
 
-    await fetch(`${API_CONDITIONS}/${id}`, {
+    const response = await fetch(`${API_CONDITIONS}/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${getToken()}`,
       },
     });
-
-    await reloadConditions();
+    if (!response.ok) {
+      alert((await response.text().catch(() => "")) || "Xóa điều kiện thất bại");
+      return;
+    }
+    setConditions((current: any[]) => current.filter((condition) => condition.id !== id));
   };
 
   const startEdit = (c: any) => {

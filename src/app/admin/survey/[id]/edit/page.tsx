@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   FiArrowLeft,
   FiArrowUp,
+  FiCalendar,
   FiChevronDown,
   FiChevronRight,
   FiFileText,
@@ -20,6 +21,7 @@ import QuestionEditor from "@/components/surveys/QuestionEditor";
 import ConditionEditor from "@/components/surveys/ConditionEditor";
 import MediaUploader from "@/components/surveys/MediaUploader";
 import SurveyAccessModal from "@/components/surveys/SurveyAccessModal";
+import SurveyPublicationModal, { type PublishableSurvey, type SurveyStatus } from "@/components/surveys/SurveyPublicationModal";
 import ApiNotFound from "@/components/common/ApiNotFound";
 import { API_PAGES, API_SURVEYS } from "@/lib/api";
 import { getUser } from "@/lib/auth";
@@ -35,8 +37,13 @@ type SurveyPage = {
 
 type Survey = {
   id: string;
+  shareCode?: string | null;
   title: string;
-  description?: string;
+  description?: string | null;
+  status?: SurveyStatus | string | null;
+  openAt?: string | null;
+  closeAt?: string | null;
+  scheduleWarnings?: string[];
   pages: SurveyPage[];
   [key: string]: any;
 };
@@ -72,6 +79,7 @@ export default function EditSurvey() {
   const [error, setError] = useState("");
   const [showConditions, setShowConditions] = useState(false);
   const [showAccess, setShowAccess] = useState(false);
+  const [showPublication, setShowPublication] = useState(false);
   const [expandedPageIds, setExpandedPageIds] = useState<Record<string, boolean>>({});
   const [activeNavId, setActiveNavId] = useState("survey-info");
   const [desktopQuickNavOpen, setDesktopQuickNavOpen] = useState(false);
@@ -126,6 +134,11 @@ export default function EditSurvey() {
 
   const updateSurvey = async () => {
     if (!survey || !id) return;
+    const shareCode = survey.shareCode?.trim();
+    if (survey.shareCode !== undefined && !/^[A-Za-z0-9]{4,24}$/.test(shareCode || "")) {
+      setError("Mã chia sẻ phải có từ 4 đến 24 chữ cái hoặc chữ số, không chứa khoảng trắng.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -135,9 +148,17 @@ export default function EditSurvey() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify({ title: survey.title, description: survey.description }),
+        body: JSON.stringify({
+          title: survey.title,
+          description: survey.description,
+          ...(shareCode ? { shareCode } : {}),
+        }),
       });
-      if (!response.ok) throw new Error(`Không lưu được khảo sát (${response.status})`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.message || `Không lưu được khảo sát (${response.status})`);
+      }
+      if (shareCode) setSurvey((current) => current && ({ ...current, shareCode }));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không lưu được khảo sát.");
     } finally {
@@ -190,11 +211,11 @@ export default function EditSurvey() {
     setPageOrderSaving(true);
     setError("");
     try {
-      await Promise.all(
-        orderedPages.map((page, index) =>
-          savePageRequest({ ...page, orderIndex: index + 1 }, index + 1)
-        )
-      );
+      const previousOrder = new Map(pagesOrdered.map((page, index) => [page.id, getValidOrderIndex(page, index + 1)]));
+      for (const [index, page] of orderedPages.entries()) {
+        if (previousOrder.get(page.id) == null || previousOrder.get(page.id) === index + 1) continue;
+        await savePageRequest({ ...page, orderIndex: index + 1 }, index + 1);
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không lưu được thứ tự trang.");
     } finally {
@@ -235,7 +256,7 @@ export default function EditSurvey() {
     }
     const data = await response.json().catch(() => null);
     if (!data?.id) {
-      await reloadSurvey();
+      setError("Backend không trả về Page vừa tạo.");
       return;
     }
 
@@ -272,7 +293,12 @@ export default function EditSurvey() {
       setError(`Không xóa được trang (${response.status})`);
       return;
     }
-    await reloadSurvey();
+    setSurvey((current) => current && ({
+      ...current,
+      pages: current.pages
+        .filter((page) => page.id !== pageId)
+        .map((page, index) => ({ ...page, orderIndex: index + 1, OrderIndex: index + 1 })),
+    }));
   };
 
   const patchPage = (pageId: string, patch: Partial<SurveyPage>) => {
@@ -284,6 +310,10 @@ export default function EditSurvey() {
 
   const scrollToSection = (targetId: string) => {
     document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const updatePublicationState = (updated: PublishableSurvey) => {
+    setSurvey((current) => current && ({ ...current, ...updated, pages: current.pages }));
   };
 
   const scrollToSectionFromMobileNav = (targetId: string) => {
@@ -462,6 +492,9 @@ export default function EditSurvey() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setShowPublication(true)} className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-50 dark:border-amber-500/30 dark:bg-gray-900 dark:text-amber-300 dark:hover:bg-amber-500/10">
+            <FiCalendar size={16} /> Xuất bản & lịch
+          </button>
           {(currentUser?.permissions.includes("survey_update_all") || String(currentUser?.id) === String(survey.creatorUserId)) && (
             <button type="button" onClick={() => setShowAccess(true)} className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-500/30 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-violet-500/10">
               <FiUsers size={16} /> Quyền truy cập
@@ -476,6 +509,7 @@ export default function EditSurvey() {
       <QuickNav />
 
       {showAccess && <SurveyAccessModal survey={survey} onClose={() => setShowAccess(false)} onChanged={reloadSurvey} />}
+      {showPublication && <SurveyPublicationModal survey={survey} onClose={() => setShowPublication(false)} onChanged={updatePublicationState} />}
 
       <div className="min-w-0 md:pr-16">
       {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
@@ -485,6 +519,11 @@ export default function EditSurvey() {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             Tên khảo sát
             <input className={`${fieldClass} mt-1.5 text-base font-medium`} value={survey.title || ""} onChange={(event) => setSurvey({ ...survey, title: event.target.value })} placeholder="Nhập tên khảo sát" />
+          </label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+            Mã chia sẻ
+            <input className={`${fieldClass} mt-1.5 font-mono`} value={survey.shareCode || ""} onChange={(event) => setSurvey({ ...survey, shareCode: event.target.value })} minLength={4} maxLength={24} pattern="[A-Za-z0-9]{4,24}" placeholder="Ví dụ: KhaoSat01" />
+            <span className="mt-1.5 block text-xs font-normal text-gray-500 dark:text-gray-400">Dùng trong link công khai; gồm 4–24 chữ cái hoặc chữ số và phân biệt hoa thường.</span>
           </label>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             Mô tả

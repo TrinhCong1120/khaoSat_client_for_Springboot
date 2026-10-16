@@ -549,6 +549,56 @@ span.flatpickr-weekday,
   @apply right-0;
 }
 
+.survey-datetime-calendar.flatpickr-calendar {
+  position: fixed !important;
+  z-index: 100000 !important;
+  inset: 50% auto auto 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 340px !important;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 32px);
+  margin: 0 !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 18px 45px -18px rgb(15 23 42 / 0.35) !important;
+}
+.survey-datetime-calendar .flatpickr-weekdays {
+  margin-top: 18px !important;
+  margin-bottom: 10px !important;
+}
+.survey-datetime-calendar .flatpickr-day {
+  border-radius: 10px !important;
+}
+.survey-datetime-calendar .flatpickr-time {
+  height: 52px;
+  margin-top: 14px;
+  border-top: 1px solid var(--color-gray-100) !important;
+  padding-top: 8px;
+}
+.survey-datetime-calendar .flatpickr-time input,
+.survey-datetime-calendar .flatpickr-time .flatpickr-time-separator {
+  color: var(--color-gray-800);
+  font-size: 14px;
+  font-weight: 600;
+}
+.survey-datetime-calendar .flatpickr-time input:hover,
+.survey-datetime-calendar .flatpickr-time input:focus {
+  background: var(--color-gray-50);
+}
+.dark .survey-datetime-calendar .flatpickr-time {
+  border-color: var(--color-gray-800) !important;
+}
+.dark .survey-datetime-calendar .flatpickr-time input,
+.dark .survey-datetime-calendar .flatpickr-time .flatpickr-time-separator {
+  color: white;
+}
+.dark .survey-datetime-calendar .flatpickr-time input:hover,
+.dark .survey-datetime-calendar .flatpickr-time input:focus {
+  background: var(--color-gray-800);
+}
+
 .fc .fc-view-harness {
   @apply max-w-full overflow-x-auto custom-scrollbar;
 }
@@ -807,4 +857,26 @@ span.flatpickr-weekday,
     0 1px 2px 0 rgba(16, 24, 40, 0.06);
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
+}
+
+.analytics-hub .recharts-cartesian-axis-tick text {
+  fill: #475569;
+}
+.dark .analytics-hub .recharts-cartesian-axis-tick text {
+  fill: #cbd5e1;
+}
+.dark .analytics-hub .recharts-cartesian-grid line {
+  stroke: #334155;
+}
+.dark .analytics-hub .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color: #f8fafc;
+}
+
+.date-wheel {
+  scrollbar-width: none;
+}
+.date-wheel::-webkit-scrollbar {
+  display: none;
 }

@@ -6,42 +6,106 @@ import {
   FiTrash2,
   FiBarChart2,
   FiExternalLink,
-  FiUnlock,
-  FiLock,
   FiX,
   FiCopy,
   FiUsers,
+  FiCalendar,
+  FiChevronDown,
+  FiSettings,
 } from "react-icons/fi";
 import { QRCodeSVG } from "qrcode.react";
-import { API_PUBLIC_SURVEYS } from "@/lib/api";
+import { API_PUBLIC_SURVEYS, apiResource } from "@/lib/api";
+import { getSurveyStatusMeta, type SurveyStatus } from "@/components/surveys/SurveyPublicationModal";
 
 type Survey = {
   id: string;
+  shareCode?: string | null;
   title: string;
-  description: string;
-  isActive?: boolean;
+  description: string | null;
+  status?: SurveyStatus | string | null;
+  openAt?: string | null;
+  closeAt?: string | null;
   creatorUser?: string | null;
   creatorUserId?: string | null;
 };
 
 type Props = {
   surveys: Survey[];
-  togglingId: string | null;
   onEdit: (id: string) => void;
   onDelete: (survey: Survey) => void;
-  onToggleActive: (id: string, nextActive: boolean) => void | Promise<void>;
+  onManagePublication?: (survey: Survey) => void;
   onManageAccess?: (survey: Survey) => void;
   canManageAccess?: (survey: Survey) => boolean;
   canEdit?: boolean;
   canDelete?: (survey: Survey) => boolean;
 };
 
-export default function SurveyTable({
-  surveys,
-  togglingId,
+function SurveyActions({
+  survey,
+  canEdit,
+  canDelete,
+  canManageAccess,
   onEdit,
   onDelete,
-  onToggleActive,
+  onManagePublication,
+  onManageAccess,
+}: {
+  survey: Survey;
+  canEdit: boolean;
+  canDelete: boolean;
+  canManageAccess: boolean;
+  onEdit: (id: string) => void;
+  onDelete: (survey: Survey) => void;
+  onManagePublication?: (survey: Survey) => void;
+  onManageAccess?: (survey: Survey) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  const run = (action: () => void) => {
+    setOpen(false);
+    action();
+  };
+
+  return (
+    <div ref={menuRef} className="relative inline-flex">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} aria-label={`Quản lý khảo sát ${survey.title}`} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-300">
+        <FiSettings size={15} />
+        <span>Quản lý</span>
+        <FiChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full z-40 mt-1.5 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-1.5 text-left shadow-xl dark:border-gray-700 dark:bg-gray-900">
+          {canEdit && onManagePublication && <button role="menuitem" type="button" onClick={() => run(() => onManagePublication(survey))} className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"><FiCalendar className="text-amber-500" /> Xuất bản và lên lịch</button>}
+          {canManageAccess && onManageAccess && <button role="menuitem" type="button" onClick={() => run(() => onManageAccess(survey))} className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"><FiUsers className="text-violet-500" /> Quyền truy cập</button>}
+          <a role="menuitem" href={`/admin/survey/${survey.id}/result`} className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"><FiBarChart2 className="text-success-500" /> Xem kết quả</a>
+          {canEdit && <button role="menuitem" type="button" onClick={() => run(() => onEdit(survey.id))} className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"><FiEdit3 className="text-brand-500" /> Chỉnh sửa</button>}
+          {canDelete && <button role="menuitem" type="button" onClick={() => run(() => onDelete(survey))} className="mt-1 flex w-full items-center gap-3 border-t border-gray-100 px-3.5 py-2.5 text-sm font-medium text-error-600 hover:bg-error-50 dark:border-gray-800 dark:text-error-400 dark:hover:bg-error-500/10"><FiTrash2 /> Xóa khảo sát</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function SurveyTable({
+  surveys,
+  onEdit,
+  onDelete,
+  onManagePublication,
   onManageAccess,
   canManageAccess,
   canEdit = true,
@@ -50,6 +114,8 @@ export default function SurveyTable({
   const [linkSurvey, setLinkSurvey] = React.useState<Survey | null>(null);
   const [copiedLink, setCopiedLink] = React.useState<string | null>(null);
   const [origin, setOrigin] = React.useState("");
+  const shareRef = linkSurvey?.shareCode || linkSurvey?.id || "";
+  const publicPath = `/survey/${encodeURIComponent(shareRef)}`;
 
   React.useEffect(() => {
     setOrigin(window.location.origin);
@@ -70,8 +136,8 @@ export default function SurveyTable({
 
   return (
     <>
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-      <div className="hidden overflow-hidden text-gray-500 dark:text-gray-400 md:block">
+    <div className="rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      <div className="hidden text-gray-500 dark:text-gray-400 md:block">
         <table className="w-full table-fixed text-sm text-left">
           <colgroup>
             <col className="w-[7%]" />
@@ -109,8 +175,7 @@ export default function SurveyTable({
               </tr>
             ) : (
               surveys.map((s, index) => {
-                const open = s.isActive !== false;
-                const busy = togglingId === s.id;
+                const status = getSurveyStatusMeta(s.status);
                 return (
                 <tr
                   key={s.id}
@@ -137,26 +202,11 @@ export default function SurveyTable({
 
                   {/* OPEN / CLOSE */}
                   <td className="px-2 py-4 sm:px-3">
-                    {canEdit && <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => onToggleActive(s.id, !open)}
-                      title={open ? "Nhấn để đóng khảo sát" : "Nhấn để mở lại"}
-                      className={`inline-flex whitespace-nowrap items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
-                        open
-                          ? "border-success-200 bg-success-50 text-success-700 hover:bg-success-100 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400 dark:hover:bg-success-500/15"
-                          : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                      }`}
-                    >
-                      {busy ? (
-                        <span className="size-3.5 animate-pulse rounded-full bg-current opacity-60" />
-                      ) : open ? (
-                        <FiUnlock className="size-3.5 shrink-0" />
-                      ) : (
-                        <FiLock className="size-3.5 shrink-0" />
-                      )}
-                      {busy ? "…" : open ? "Đang mở" : "Đã đóng"}
-                    </button>}
+                    {canEdit && onManagePublication ? (
+                      <button type="button" onClick={() => onManagePublication(s)} title="Quản lý xuất bản và lên lịch" className={`inline-flex whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition hover:ring-2 hover:ring-brand-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${status.className}`}>{status.label}</button>
+                    ) : (
+                      <span className={`inline-flex whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold ${status.className}`}>{status.label}</span>
+                    )}
                   </td>
 
                   {/* API PUBLIC */}
@@ -173,36 +223,7 @@ export default function SurveyTable({
 
                   {/* ACTIONS */}
                   <td className="whitespace-nowrap px-1 py-4 text-right sm:px-2">
-                    <div className="flex justify-end gap-0.5">
-                      {onManageAccess && canManageAccess?.(s) && <button type="button" onClick={() => onManageAccess(s)} title="Quản lý quyền truy cập" className="rounded-xl p-1.5 text-violet-500 transition-all hover:bg-violet-50 dark:hover:bg-violet-500/10"><FiUsers size={18} /></button>}
-                      
-                      {/* RESULT */}
-                      <a
-                        href={`/admin/survey/${s.id}/result`}
-                        title="Xem kết quả"
-                        className="p-1.5 text-success-500 hover:bg-success-50 dark:hover:bg-success-500/10 rounded-xl transition-all"
-                      >
-                        <FiBarChart2 size={18} />
-                      </a>
-
-                      {/* EDIT */}
-                      {canEdit && <button
-                        onClick={() => onEdit(s.id)}
-                        title="Chỉnh sửa"
-                        className="p-1.5 text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-xl transition-all"
-                      >
-                        <FiEdit3 size={18} />
-                      </button>}
-
-                      {/* DELETE */}
-                      {(!canDelete || canDelete(s)) && <button
-                        onClick={() => onDelete(s)}
-                        title="Xóa"
-                        className="p-1.5 text-error-500 hover:bg-error-50 dark:hover:bg-error-500/10 rounded-xl transition-all"
-                      >
-                        <FiTrash2 size={18} />
-                      </button>}
-                    </div>
+                    <SurveyActions survey={s} canEdit={canEdit} canDelete={!canDelete || canDelete(s)} canManageAccess={Boolean(onManageAccess && canManageAccess?.(s))} onEdit={onEdit} onDelete={onDelete} onManagePublication={onManagePublication} onManageAccess={onManageAccess} />
                   </td>
                 </tr>
               );
@@ -212,8 +233,8 @@ export default function SurveyTable({
         </table>
       </div>
       <div className="divide-y divide-gray-100 text-gray-500 dark:divide-gray-800 dark:text-gray-400 md:hidden">
-        {surveys.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-400">Không tìm thấy khảo sát nào.</div> : surveys.map((s, index) => { const open = s.isActive !== false; const busy = togglingId === s.id; return (
-          <article key={s.id} className="space-y-4 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{s.title}</p><p className="mt-1 text-xs text-gray-400">STT: {index + 1}</p></div>{canEdit ? <button type="button" disabled={busy} onClick={() => onToggleActive(s.id, !open)} className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${open ? "border-success-200 bg-success-50 text-success-700" : "border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>{busy ? "…" : open ? "Đang mở" : "Đã đóng"}</button> : <span className="text-xs text-gray-500">{open ? "Đang mở" : "Đã đóng"}</span>}</div><p className="line-clamp-2 text-xs">{s.description || "—"}</p><div className="flex items-center justify-between gap-3"><button type="button" onClick={() => setLinkSurvey(s)} className="text-xs font-bold text-brand-500">Xem link</button><div className="flex gap-1.5">{onManageAccess && canManageAccess?.(s) && <button type="button" onClick={() => onManageAccess(s)} aria-label="Quản lý quyền truy cập" className="rounded-xl p-2 text-violet-500 hover:bg-violet-50"><FiUsers size={18} /></button>}<a href={`/admin/survey/${s.id}/result`} aria-label="Xem kết quả" className="rounded-xl p-2 text-success-500 hover:bg-success-50"><FiBarChart2 size={18} /></a>{canEdit && <button onClick={() => onEdit(s.id)} aria-label="Chỉnh sửa" className="rounded-xl p-2 text-brand-500 hover:bg-brand-50"><FiEdit3 size={18} /></button>}{(!canDelete || canDelete(s)) && <button onClick={() => onDelete(s)} aria-label="Xóa" className="rounded-xl p-2 text-error-500 hover:bg-error-50"><FiTrash2 size={18} /></button>}</div></div></article>
+        {surveys.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-400">Không tìm thấy khảo sát nào.</div> : surveys.map((s, index) => { const status = getSurveyStatusMeta(s.status); return (
+          <article key={s.id} className="space-y-4 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{s.title}</p><p className="mt-1 text-xs text-gray-400">STT: {index + 1}</p></div>{canEdit && onManagePublication ? <button type="button" onClick={() => onManagePublication(s)} className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</button> : <span className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>}</div><p className="line-clamp-2 text-xs">{s.description || "—"}</p><div className="flex items-center justify-between gap-3"><button type="button" onClick={() => setLinkSurvey(s)} className="text-xs font-bold text-brand-500">Xem link</button><SurveyActions survey={s} canEdit={canEdit} canDelete={!canDelete || canDelete(s)} canManageAccess={Boolean(onManageAccess && canManageAccess?.(s))} onEdit={onEdit} onDelete={onDelete} onManagePublication={onManagePublication} onManageAccess={onManageAccess} /></div></article>
         ); })}
       </div>
       {linkSurvey && (
@@ -249,13 +270,16 @@ export default function SurveyTable({
                 <p className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Mã QR link FE</p>
                 <div className="rounded-xl bg-white p-2 shadow-sm">
                   <QRCodeSVG
-                    value={origin ? `${origin}/survey/${linkSurvey.id}` : `/survey/${linkSurvey.id}`}
+                    value={origin ? `${origin}${publicPath}` : publicPath}
                     size={220}
                     level="H"
                     marginSize={4}
                     title={`Mã QR mở khảo sát ${linkSurvey.title}`}
                   />
                 </div>
+                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                  Mã chia sẻ: <strong className="font-semibold text-gray-800 dark:text-gray-200">{shareRef}</strong>
+                </p>
                 <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">Quét mã để mở trang khảo sát</p>
               </div>
 
@@ -263,13 +287,13 @@ export default function SurveyTable({
               {[
                 {
                   label: "Xem API Public",
-                  link: `${API_PUBLIC_SURVEYS}/${linkSurvey.id}`,
+                  link: apiResource(API_PUBLIC_SURVEYS, shareRef),
                   className:
                     "border-brand-200 bg-brand-50 text-brand-600 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20",
                 },
                 {
                   label: "Xem trang khảo sát",
-                  link: origin ? `${origin}/survey/${linkSurvey.id}` : `/survey/${linkSurvey.id}`,
+                  link: origin ? `${origin}${publicPath}` : publicPath,
                   className:
                     "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700",
                 },

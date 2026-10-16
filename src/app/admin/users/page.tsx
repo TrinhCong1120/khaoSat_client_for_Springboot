@@ -7,6 +7,7 @@ import Button from "@/components/ui/button/Button";
 import { PlusIcon } from "@/icons";
 import { API_USERS } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
+import type { PagedResult } from "@/types/report";
 
 // ======================
 // TYPE
@@ -18,6 +19,7 @@ export interface User {
   isActive: boolean;
   roleIds?: string[];
   roles?: string[];
+  telegramChatId?: number | null;
 }
 
 // ======================
@@ -37,8 +39,8 @@ export default function UsersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const pageSize = 10;
-  const paginatedUsers = users.slice((page - 1) * pageSize, page * pageSize);
 
   // ======================
   // FETCH USERS
@@ -55,7 +57,7 @@ export default function UsersPage() {
         return;
       }
 
-      const res = await fetch(API_USERS, {
+      const res = await fetch(`${API_USERS}/page?page=${page}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -70,7 +72,12 @@ export default function UsersPage() {
       }
 
       if (!res.ok) {
-        throw new Error(`Error ${res.status}`);
+        const body = await res.json().catch(() => null);
+        const message =
+          body && typeof body === "object" && "message" in body
+            ? String(body.message)
+            : `Không thể tải danh sách người dùng (${res.status})`;
+        throw new Error(message);
       }
 
       const text = await res.text();
@@ -87,7 +94,16 @@ export default function UsersPage() {
         throw new Error("Phản hồi JSON không hợp lệ");
       }
 
-      setUsers(data.data || data);
+      const result = data as PagedResult<User>;
+      if (!Array.isArray(result.content) || typeof result.totalElements !== "number") {
+        throw new Error("Dữ liệu người dùng không đúng định dạng");
+      }
+      if (result.totalPages > 0 && page > result.totalPages) {
+        setPage(result.totalPages);
+        return;
+      }
+      setUsers(result.content);
+      setTotal(result.totalElements);
     } catch (err) {
       console.error(err);
       setError(
@@ -96,7 +112,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     fetchUsers();
@@ -138,8 +154,8 @@ export default function UsersPage() {
       }
 
       // 🚀 update UI nhanh hơn (không cần fetch lại)
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-      setPage((current) => Math.min(current, Math.max(1, Math.ceil((users.length - 1) / pageSize))));
+      if (users.length === 1 && page > 1) setPage(page - 1);
+      else await fetchUsers();
     } catch (err) {
       alert(
         err instanceof Error ? err.message : "Lỗi khi xóa"
@@ -197,11 +213,11 @@ export default function UsersPage() {
       {!loading && !error && (
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm p-4">
           <UserTable
-            users={paginatedUsers}
+            users={users}
             onEdit={handleEdit}
             onDelete={handleDelete}
           />
-          <Pagination page={page} pageSize={pageSize} total={users.length} onPageChange={setPage} />
+          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
         </div>
       )}
 

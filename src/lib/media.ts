@@ -1,5 +1,17 @@
 import { API_MEDIA } from "@/lib/api";
 
+const MEDIA_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
+
+export function resolveMediaUrl(value?: string | null): string {
+  const url = String(value ?? "").trim();
+
+  if (!url || /^[a-z][a-z\d+.-]*:/i.test(url) || url.startsWith("//")) {
+    return url;
+  }
+
+  return `${MEDIA_BASE_URL}/${url.replace(/^\/+/, "")}`;
+}
+
 export type MediaOwnerType = "SURVEY" | "PAGE" | "QUESTION" | "OPTION";
 export type MediaType = "IMAGE" | "VIDEO" | "AUDIO";
 
@@ -103,3 +115,23 @@ export async function uploadMedia({
 
 export const mediaField = (mediaType: MediaType) =>
   mediaType === "IMAGE" ? "imageUrl" : mediaType === "VIDEO" ? "videoUrl" : "audioUrl";
+
+type MediaContainer = {
+  mediaFiles?: Array<{ mediaType?: string | null; objectUrl?: string | null }> | null;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  audioUrl?: string | null;
+};
+
+export function getMediaUrls(owner: MediaContainer | null | undefined, mediaType: MediaType): string[] {
+  const urls = Array.isArray(owner?.mediaFiles)
+    ? owner.mediaFiles
+        .filter((media) => String(media.mediaType || "").toUpperCase() === mediaType)
+        .map((media) => media.objectUrl)
+    : [];
+
+  return Array.from(new Set([
+    ...urls,
+    owner?.[mediaField(mediaType)],
+  ].filter((url): url is string => typeof url === "string" && url.trim().length > 0)));
+}

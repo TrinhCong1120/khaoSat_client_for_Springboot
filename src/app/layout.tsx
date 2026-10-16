@@ -4,11 +4,12 @@ import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { Agentation } from "agentation";
+import SiteVisitTracker from "@/components/SiteVisitTracker";
 
 
 export const metadata: Metadata = {
-  title: "Khảo sát nhà ở xã hội | Sở Xây dựng Đà Nẵng",
-  description: "Cổng khảo sát nhu cầu nhà ở xã hội của Sở Xây dựng Đà Nẵng.",
+  title: "Khảo sát | Tạo, chia sẻ và phân tích phản hồi",
+  description: "Công cụ khảo sát cá nhân với lịch xuất bản, câu hỏi điều kiện, chia sẻ bằng mã và báo cáo trực quan.",
 };
 
 export const viewport: Viewport = {
@@ -35,9 +36,10 @@ export default function RootLayout({
       >
           <ThemeProvider>
             <SidebarProvider>
+              <SiteVisitTracker />
               {children}
               {process.env.NODE_ENV === "development" && (
-                <Agentation endpoint="http://localhost:4747" />
+                <Agentation />
               )}
             </SidebarProvider>
           </ThemeProvider>

@@ -92,7 +92,7 @@ const AdminHeader: React.FC = () => {
               src="/images/logo/logo.svg"
               alt="Logo"
               className="dark:hidden"
-              style={{ height: "auto" }}
+              style={{ width: "auto", height: "auto" }}
             />
             <Image
               width={140}
@@ -100,7 +100,7 @@ const AdminHeader: React.FC = () => {
               src="/images/logo/logo-dark.svg"
               alt="Logo"
               className="hidden dark:block"
-              style={{ height: "auto" }}
+              style={{ width: "auto", height: "auto" }}
             />
           </Link>
 

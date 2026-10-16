@@ -19,6 +19,39 @@ type NavItem = {
   children?: NavItem[];
 };
 
+type MenuResponseItem = {
+  name?: string;
+  icon?: string;
+  path?: string;
+  children?: MenuResponseItem[];
+};
+
+const translationMap: Record<string, string> = {
+  Dashboard: "Bảng điều khiển",
+  Users: "Người dùng",
+  Roles: "Quyền hạn",
+  Menus: "Quản lý Menu",
+  Surveys: "Khảo sát",
+  Results: "Kết quả",
+  Settings: "Cài đặt",
+  Profile: "Cá nhân",
+  "Sign In": "Đăng nhập",
+  "Sign Up": "Đăng ký",
+  "Error 404": "Lỗi 404",
+  "Form Elements": "Mẫu Form",
+  Tables: "Bảng biểu",
+  Charts: "Biểu đồ",
+  Calendar: "Lịch",
+  Buttons: "Nút bấm",
+  Modals: "Hộp thoại",
+  Videos: "Video",
+  UI: "Giao diện",
+  Auth: "Xác thực",
+  Pages: "Trang",
+};
+
+const translateName = (name: string) => translationMap[name] || name;
+
 // ======================
 // TOKEN
 // ======================
@@ -73,7 +106,11 @@ const getIcon = (iconName: string) => {
   if (!iconName) return <FiIcons.FiGrid size={20} />;
 
   const fiName = map[iconName] || (iconName.startsWith("Fi") ? iconName : `Fi${iconName}`);
-  const IconComponent = (FiIcons as any)[fiName] || FiIcons.FiGrid;
+  const icons = FiIcons as unknown as Record<
+    string,
+    React.ComponentType<{ size?: number }>
+  >;
+  const IconComponent = icons[fiName] || FiIcons.FiGrid;
   
   return <IconComponent size={20} />;
 };
@@ -107,35 +144,6 @@ const AdminSidebar: React.FC = () => {
 
   useEffect(() => clearHoverTimers, [clearHoverTimers]);
 
-  // ======================
-  // MENU MAPPING (Translated)
-  // ======================
-  const translationMap: Record<string, string> = {
-    Dashboard: "Bảng điều khiển",
-    Users: "Người dùng",
-    Roles: "Quyền hạn",
-    Menus: "Quản lý Menu",
-    Surveys: "Khảo sát",
-    Results: "Kết quả",
-    Settings: "Cài đặt",
-    Profile: "Cá nhân",
-    "Sign In": "Đăng nhập",
-    "Sign Up": "Đăng ký",
-    "Error 404": "Lỗi 404",
-    "Form Elements": "Mẫu Form",
-    Tables: "Bảng biểu",
-    Charts: "Biểu đồ",
-    Calendar: "Lịch",
-    Buttons: "Nút bấm",
-    Modals: "Hộp thoại",
-    Videos: "Video",
-    UI: "Giao diện",
-    Auth: "Xác thực",
-    Pages: "Trang",
-  };
-
-  const translateName = (name: string) => translationMap[name] || name;
-
   const [menuData, setMenuData] = useState<NavItem[]>([]);
   const [openSubmenu, setOpenSubmenu] = useState<{ index: number } | null>(null);
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
@@ -164,22 +172,33 @@ const AdminSidebar: React.FC = () => {
           return;
         }
 
-        const data = await res.json();
+        const data: unknown = await res.json().catch(() => null);
+        if (!res.ok) {
+          const message =
+            data && typeof data === "object" && "message" in data
+              ? String(data.message)
+              : `Không thể tải menu (${res.status})`;
+          throw new Error(message);
+        }
+        if (!Array.isArray(data)) {
+          throw new Error("Dữ liệu menu không đúng định dạng");
+        }
 
-        const convert = (items: any[]): NavItem[] =>
+        const convert = (items: MenuResponseItem[]): NavItem[] =>
           items.map((item) => ({
-            name: translateName(item.name),
+            name: translateName(item.name || "Menu"),
             path: item.path ? "/admin" + item.path : undefined,
-            icon: getIcon(item.icon),
+            icon: getIcon(item.icon || ""),
             children:
-              item.children?.length > 0
+              Array.isArray(item.children) && item.children.length > 0
                 ? convert(item.children)
                 : undefined,
           }));
 
         setMenuData(convert(data));
       } catch (err) {
-        console.error(err);
+        console.warn("Không thể tải menu:", err);
+        setMenuData([]);
       }
     };
 
@@ -369,7 +388,7 @@ const AdminSidebar: React.FC = () => {
                  alt="Logo"
                  width={150}
                  height={40}
-                 style={{ height: "auto" }}
+                 style={{ width: "auto", height: "auto" }}
                />
                <Image
                  className="hidden dark:block"
@@ -377,7 +396,7 @@ const AdminSidebar: React.FC = () => {
                  alt="Logo"
                  width={150}
                  height={40}
-                 style={{ height: "auto" }}
+                 style={{ width: "auto", height: "auto" }}
                />
             </div>
           ) : (

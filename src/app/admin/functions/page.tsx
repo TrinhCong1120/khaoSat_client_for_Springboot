@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import FunctionTable from "@/components/functions/FunctionTable";
 import PermissionMatrixModal from "@/components/functions/PermissionMatrixModal";
 import { API_FUNCTIONS } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
+import type { PagedResult } from "@/types/report";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -21,32 +22,39 @@ export default function FunctionsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const pageSize = 10;
-  const paginatedFunctions = functions.slice((page - 1) * pageSize, page * pageSize);
 
   // ======================
   // FETCH FUNCTIONS
   // ======================
-  const fetchFunctions = async () => {
+  const fetchFunctions = useCallback(async () => {
     try {
-      const res = await fetch(API_FUNCTIONS, {
+      setLoading(true);
+      const res = await fetch(`${API_FUNCTIONS}/page?page=${page}`, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
       });
 
-      const data = await res.json();
-      setFunctions(data);
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data: PagedResult<Func> = await res.json();
+      if (data.totalPages > 0 && page > data.totalPages) {
+        setPage(data.totalPages);
+        return;
+      }
+      setFunctions(data.content);
+      setTotal(data.totalElements);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
 
   useEffect(() => {
     fetchFunctions();
-  }, []);
+  }, [fetchFunctions]);
 
   // ======================
   // UI
@@ -72,10 +80,10 @@ export default function FunctionsPage() {
         ) : (
           <>
             <FunctionTable
-              functions={paginatedFunctions}
+              functions={functions}
               onPermission={(id: string) => setSelectedFunction(id)}
             />
-            <Pagination page={page} pageSize={pageSize} total={functions.length} onPageChange={setPage} />
+            <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
           </>
         )}
       </div>

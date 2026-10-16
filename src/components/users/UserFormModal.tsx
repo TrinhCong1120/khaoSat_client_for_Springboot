@@ -37,6 +37,9 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
   const [username, setUsername] = useState(user?.username || "");
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
+  const [telegramChatId, setTelegramChatId] = useState(
+    user?.telegramChatId?.toString() || ""
+  );
 
   // 🔥 chỉ chọn 1 role
   const [roleId, setRoleId] = useState<string | "">(
@@ -53,6 +56,8 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
   // 🔥 LOAD ROLES
   // ======================
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchRoles = async () => {
       try {
         const token =
@@ -68,20 +73,36 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          signal: controller.signal,
         });
 
-        if (!res.ok) {
-          throw new Error("Không thể tải danh sách vai trò");
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          sessionStorage.removeItem("token");
+          window.location.href = "/signin";
+          return;
         }
 
-        const data = await res.json();
-        setRoles(data);
+        const data: unknown = await res.json().catch(() => null);
+        if (!res.ok) {
+          const message =
+            data && typeof data === "object" && "message" in data
+              ? String(data.message)
+              : `Không thể tải danh sách vai trò (${res.status})`;
+          throw new Error(message);
+        }
+        if (!Array.isArray(data)) {
+          throw new Error("Dữ liệu vai trò không đúng định dạng");
+        }
+
+        const loadedRoles = data as Role[];
+        setRoles(loadedRoles);
 
         // ======================
         // 🔥 MAP ROLE NAME → ID
         // ======================
         if (user?.roles?.length) {
-          const matched = data.find(
+          const matched = loadedRoles.find(
             (r: Role) => r.name === user?.roles?.[0]
           );
 
@@ -91,11 +112,20 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
         }
 
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         console.error("Load roles error:", err);
+        setError(
+          err instanceof TypeError
+            ? "Không thể kết nối đến máy chủ. Vui lòng thử lại."
+            : err instanceof Error
+              ? err.message
+              : "Không thể tải danh sách vai trò"
+        );
       }
     };
 
     fetchRoles();
+    return () => controller.abort();
   }, [user]);
 
   // ======================
@@ -107,6 +137,12 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
       setError("Mật khẩu phải có ít nhất 8 ký tự");
       return;
     }
+    const normalizedChatId = telegramChatId.trim();
+    if (normalizedChatId && (!/^\d+$/.test(normalizedChatId) || Number(normalizedChatId) <= 0)) {
+      setError("Telegram Chat ID phải là số nguyên dương");
+      return;
+    }
+    const chatId = normalizedChatId ? Number(normalizedChatId) : null;
     setLoading(true);
     setError(null);
 
@@ -116,12 +152,14 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
           email,
           ...(password && { password }),
           roleIds: roleId ? [roleId] : [],
+          telegramChatId: chatId,
         }
       : {
           username,
           email,
           password,
           roleIds: roleId ? [roleId] : [],
+          telegramChatId: chatId,
         };
 
     const url = isEditMode
@@ -207,6 +245,20 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
               onChange={(e) => setPassword(e.target.value)}
               required={!isEditMode}
             />
+          </div>
+
+          <div>
+            <Label>Telegram Chat ID</Label>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={telegramChatId}
+              onChange={(e) => setTelegramChatId(e.target.value)}
+              placeholder="Nhắn /start cho bot để lấy Chat ID"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Để trống nếu tài khoản chưa liên kết Telegram.
+            </p>
           </div>
 
           {/* 🔥 ROLE SELECT */}

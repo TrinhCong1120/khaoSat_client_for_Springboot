@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FiImage, FiMusic, FiPlus, FiTrash2, FiUpload, FiVideo, FiX } from "react-icons/fi";
 import { API_MEDIA } from "@/lib/api";
-import { mediaField, MediaOwnerType, MediaType, uploadMedia } from "@/lib/media";
+import { mediaField, MediaOwnerType, MediaType, resolveMediaUrl, uploadMedia } from "@/lib/media";
 
 type Props = {
   ownerType: MediaOwnerType;
@@ -156,7 +156,7 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
     <div className={`${ownerType === "OPTION" ? "col-span-full mt-2" : ""} w-full min-w-0`}>
         <div className={`${compactLayout ? "flex-wrap rounded-lg border border-gray-100 bg-gray-50/60 p-2.5 dark:border-gray-800 dark:bg-gray-950/40" : ""} flex min-w-0 items-center gap-2.5`}>
           <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} title="Thêm tệp đa phương tiện" aria-label="Thêm tệp đa phương tiện" className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-500 transition hover:border-brand-400 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800">
-            {activeUrl && activeType === "IMAGE" ? <img src={activeUrl} alt="Ảnh minh họa" className="h-full w-full object-cover" /> : <TypeIcon size={18} />}
+            {activeUrl && activeType === "IMAGE" ? <img src={resolveMediaUrl(activeUrl)} alt="Ảnh minh họa" className="h-full w-full object-cover" /> : <TypeIcon size={18} />}
             <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><FiUpload size={15} /></span>
           </button>
           <div className="min-w-0 flex-1">
@@ -190,8 +190,8 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
             {imageUrls.map((url, index) => {
               const media = visibleMedia.find((item: any) => item?.objectUrl === url);
               return <div key={`${url}-${index}`} className="group relative aspect-[4/3] overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-                <a href={url} target="_blank" rel="noreferrer" title={`Mở ảnh ${index + 1}`} className="block h-full w-full">
-                  <img src={url} alt={`Ảnh ${index + 1}`} loading="lazy" className="h-full w-full object-cover" />
+                <a href={resolveMediaUrl(url)} target="_blank" rel="noreferrer" title={`Mở ảnh ${index + 1}`} className="block h-full w-full">
+                  <img src={resolveMediaUrl(url)} alt={`Ảnh ${index + 1}`} loading="lazy" className="h-full w-full object-cover" />
                 </a>
                 <button type="button" onClick={() => media?.id ? void deleteMedia(media) : clearMediaUrl("IMAGE")} aria-label={`Xóa ảnh ${index + 1}`} title="Xóa ảnh" className="absolute right-1 top-1 rounded-full bg-black/65 p-1.5 text-white opacity-100 transition hover:bg-red-600 sm:opacity-0 sm:group-hover:opacity-100"><FiTrash2 size={13} /></button>
               </div>;
@@ -202,7 +202,7 @@ export default function MediaUploader({ ownerType, ownerId, values, onChange, co
 
       {activeUrl && activeType && activeType !== "IMAGE" && (
         <div className={`${compactLayout ? "pl-0" : "pl-[58px]"} mt-2`}>
-          {activeType === "VIDEO" ? <video src={activeUrl} controls className="max-h-28 w-full rounded-md bg-black" /> : <audio src={activeUrl} controls className="h-8 w-full" />}
+          {activeType === "VIDEO" ? <video src={resolveMediaUrl(activeUrl)} controls className="max-h-28 w-full rounded-md bg-black" /> : <audio src={resolveMediaUrl(activeUrl)} controls className="h-8 w-full" />}
         </div>
       )}
       {error && <p role="alert" className={`${compactLayout ? "pl-0" : "pl-[58px]"} mt-1 flex items-center gap-1 text-[11px] text-red-600 dark:text-red-400`}><FiX size={12} />{error}</p>}
