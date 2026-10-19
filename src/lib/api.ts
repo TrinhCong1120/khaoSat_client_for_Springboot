@@ -1,4 +1,5 @@
-export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+const configuredApiBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
+export const API_BASE = configuredApiBase.replace(/\/api$/i, "");
 
 const endpoint = (name: string, fallback: string) => {
   if (process.env[name]) return process.env[name];
@@ -10,6 +11,7 @@ export const API_USERS = endpoint("NEXT_PUBLIC_API_USERS", "/api/Users");
 export const API_ROLES = endpoint("NEXT_PUBLIC_API_ROLES", "/api/Roles");
 export const API_MENUS = endpoint("NEXT_PUBLIC_API_MENUS", "/api/Menus");
 export const API_FUNCTIONS = endpoint("NEXT_PUBLIC_API_FUNCTIONS", "/api/Functions");
+export const API_NOTIFICATIONS = endpoint("NEXT_PUBLIC_API_NOTIFICATIONS", "/api/notifications");
 export const API_SURVEYS = endpoint("NEXT_PUBLIC_API_SURVEYS", "/api/Surveys");
 export const API_PAGES = endpoint("NEXT_PUBLIC_API_PAGES", "/api/Pages");
 export const API_QUESTIONS = endpoint("NEXT_PUBLIC_API_QUESTIONS", "/api/Questions");
@@ -31,7 +33,7 @@ export const API_FAILED_SURVEYS = endpoint(
   "/api/FailedSurveys"
 );
 export const API_CHATBOT =
-  process.env.NEXT_PUBLIC_API_CHATBOT || `${API_BASE}/chatbot`;
+  process.env.NEXT_PUBLIC_API_CHATBOT || `${configuredApiBase}/chatbot`;
 export const API_PROVINCES =
   process.env.NEXT_PUBLIC_API_PROVINCES || "https://provinces.open-api.vn/api/v2";
 

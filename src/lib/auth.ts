@@ -25,3 +25,21 @@ export function getUser(): StoredUser | null {
     return null;
   }
 }
+
+// The API authorizes requests from JWT claims, so UI permissions must use that same token.
+export function getPermissions(): string[] {
+  const token = getToken();
+  if (!token) return [];
+  try {
+    const encoded = token.split(".")[1];
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const bytes = Uint8Array.from(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")),
+      (char) => char.charCodeAt(0));
+    const claims = JSON.parse(new TextDecoder().decode(bytes));
+    return Array.isArray(claims.permission)
+      ? claims.permission.filter((value: unknown): value is string => typeof value === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}

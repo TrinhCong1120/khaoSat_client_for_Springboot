@@ -4,20 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FiKey, FiRefreshCw, FiSearch, FiUserCheck, FiX } from "react-icons/fi";
 import { API_SURVEYS, API_USERS } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/apiError";
-import { getToken, getUser } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
 import SurveyNameConfirmationModal from "@/components/surveys/SurveyNameConfirmationModal";
 
-type Survey = { id: string; title: string; creatorUser?: string | null; creatorUserId?: string | null };
+type Survey = { id: string; title: string; creatorUser?: string | null; creatorUserId?: string | null; canManageAccess: boolean };
 type User = { id: string; username: string; email?: string | null };
 type Access = { userId: string; username?: string | null; email?: string | null; permissions: string[] };
 type AccessLevel = "" | "VIEW" | "EDIT";
 
 export default function SurveyAccessModal({ survey, onClose, onChanged }: { survey: Survey; onClose: () => void; onChanged: () => void }) {
-  const currentUser = getUser();
-  const canTransferOwner = Boolean(currentUser && (
-    currentUser.permissions.includes("survey_update_all") ||
-    String(currentUser.id) === String(survey.creatorUserId)
-  ));
+  const canTransferOwner = survey.canManageAccess;
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [access, setAccess] = useState<Access[]>([]);
   const [levels, setLevels] = useState<Record<string, AccessLevel>>({});

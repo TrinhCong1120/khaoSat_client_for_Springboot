@@ -27,6 +27,9 @@ type Survey = {
   closeAt?: string | null;
   creatorUser?: string | null;
   creatorUserId?: string | null;
+  canEdit: boolean;
+  canDelete: boolean;
+  canManageAccess: boolean;
 };
 
 type Props = {
@@ -36,7 +39,7 @@ type Props = {
   onManagePublication?: (survey: Survey) => void;
   onManageAccess?: (survey: Survey) => void;
   canManageAccess?: (survey: Survey) => boolean;
-  canEdit?: boolean;
+  canEdit?: (survey: Survey) => boolean;
   canDelete?: (survey: Survey) => boolean;
 };
 
@@ -108,7 +111,7 @@ export default function SurveyTable({
   onManagePublication,
   onManageAccess,
   canManageAccess,
-  canEdit = true,
+  canEdit,
   canDelete,
 }: Props) {
   const [linkSurvey, setLinkSurvey] = React.useState<Survey | null>(null);
@@ -202,7 +205,7 @@ export default function SurveyTable({
 
                   {/* OPEN / CLOSE */}
                   <td className="px-2 py-4 sm:px-3">
-                    {canEdit && onManagePublication ? (
+                    {canEdit?.(s) && onManagePublication ? (
                       <button type="button" onClick={() => onManagePublication(s)} title="Quản lý xuất bản và lên lịch" className={`inline-flex whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition hover:ring-2 hover:ring-brand-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${status.className}`}>{status.label}</button>
                     ) : (
                       <span className={`inline-flex whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold ${status.className}`}>{status.label}</span>
@@ -223,7 +226,7 @@ export default function SurveyTable({
 
                   {/* ACTIONS */}
                   <td className="whitespace-nowrap px-1 py-4 text-right sm:px-2">
-                    <SurveyActions survey={s} canEdit={canEdit} canDelete={!canDelete || canDelete(s)} canManageAccess={Boolean(onManageAccess && canManageAccess?.(s))} onEdit={onEdit} onDelete={onDelete} onManagePublication={onManagePublication} onManageAccess={onManageAccess} />
+                    <SurveyActions survey={s} canEdit={Boolean(canEdit?.(s))} canDelete={Boolean(canDelete?.(s))} canManageAccess={Boolean(onManageAccess && canManageAccess?.(s))} onEdit={onEdit} onDelete={onDelete} onManagePublication={onManagePublication} onManageAccess={onManageAccess} />
                   </td>
                 </tr>
               );
@@ -234,7 +237,7 @@ export default function SurveyTable({
       </div>
       <div className="divide-y divide-gray-100 text-gray-500 dark:divide-gray-800 dark:text-gray-400 md:hidden">
         {surveys.length === 0 ? <div className="px-5 py-10 text-center text-sm text-gray-400">Không tìm thấy khảo sát nào.</div> : surveys.map((s, index) => { const status = getSurveyStatusMeta(s.status); return (
-          <article key={s.id} className="space-y-4 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{s.title}</p><p className="mt-1 text-xs text-gray-400">STT: {index + 1}</p></div>{canEdit && onManagePublication ? <button type="button" onClick={() => onManagePublication(s)} className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</button> : <span className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>}</div><p className="line-clamp-2 text-xs">{s.description || "—"}</p><div className="flex items-center justify-between gap-3"><button type="button" onClick={() => setLinkSurvey(s)} className="text-xs font-bold text-brand-500">Xem link</button><SurveyActions survey={s} canEdit={canEdit} canDelete={!canDelete || canDelete(s)} canManageAccess={Boolean(onManageAccess && canManageAccess?.(s))} onEdit={onEdit} onDelete={onDelete} onManagePublication={onManagePublication} onManageAccess={onManageAccess} /></div></article>
+          <article key={s.id} className="space-y-4 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-gray-800 dark:text-white/90">{s.title}</p><p className="mt-1 text-xs text-gray-400">STT: {index + 1}</p></div>{canEdit?.(s) && onManagePublication ? <button type="button" onClick={() => onManagePublication(s)} className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</button> : <span className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>}</div><p className="line-clamp-2 text-xs">{s.description || "—"}</p><div className="flex items-center justify-between gap-3"><button type="button" onClick={() => setLinkSurvey(s)} className="text-xs font-bold text-brand-500">Xem link</button><SurveyActions survey={s} canEdit={Boolean(canEdit?.(s))} canDelete={Boolean(canDelete?.(s))} canManageAccess={Boolean(onManageAccess && canManageAccess?.(s))} onEdit={onEdit} onDelete={onDelete} onManagePublication={onManagePublication} onManageAccess={onManageAccess} /></div></article>
         ); })}
       </div>
       {linkSurvey && (

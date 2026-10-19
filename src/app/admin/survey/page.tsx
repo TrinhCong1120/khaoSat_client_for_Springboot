@@ -13,6 +13,7 @@ import SurveyAccessModal from "@/components/surveys/SurveyAccessModal";
 import SurveyNameConfirmationModal from "@/components/surveys/SurveyNameConfirmationModal";
 import SurveyPublicationModal, { type PublishableSurvey, type SurveyStatus } from "@/components/surveys/SurveyPublicationModal";
 import { getUser } from "@/lib/auth";
+import { withSurveyActions } from "@/lib/surveyActions";
 import type { PagedResult } from "@/types/report";
 
 export interface Survey {
@@ -25,6 +26,9 @@ export interface Survey {
   closeAt?: string | null;
   creatorUser?: string | null;
   creatorUserId?: string | null;
+  canEdit: boolean;
+  canDelete: boolean;
+  canManageAccess: boolean;
 }
 
 const getToken = () =>
@@ -46,18 +50,9 @@ export default function SurveyPage() {
 
   const router = useRouter();
   const currentUser = getUser();
-  const canManageAccess = (survey: Survey) =>
-    Boolean(currentUser && (
-      currentUser.permissions.includes("survey_update_all") ||
-      String(survey.creatorUserId) === String(currentUser.id)
-    ));
-  const canEdit = Boolean(currentUser?.permissions.some((permission) =>
-    permission === "survey_update" || permission === "survey_update_all"));
-  const canDelete = (survey: Survey) => Boolean(
-    currentUser?.permissions.includes("survey_delete") &&
-    (currentUser.permissions.includes("survey_update_all") ||
-      String(survey.creatorUserId) === String(currentUser.id))
-  );
+  const canManageAccess = (survey: Survey) => survey.canManageAccess;
+  const canEdit = (survey: Survey) => survey.canEdit;
+  const canDelete = (survey: Survey) => survey.canDelete;
   const fetchSurveys = useCallback(async () => {
     try {
       setLoading(true);
@@ -74,7 +69,7 @@ export default function SurveyPage() {
         setPage(data.totalPages);
         return;
       }
-      setSurveys(data.content);
+      setSurveys(data.content.map(withSurveyActions));
       setTotal(data.totalElements);
     } catch (err) {
       console.error(err);

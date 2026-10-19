@@ -24,7 +24,7 @@ import SurveyAccessModal from "@/components/surveys/SurveyAccessModal";
 import SurveyPublicationModal, { type PublishableSurvey, type SurveyStatus } from "@/components/surveys/SurveyPublicationModal";
 import ApiNotFound from "@/components/common/ApiNotFound";
 import { API_PAGES, API_SURVEYS } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { withSurveyActions } from "@/lib/surveyActions";
 
 type SurveyPage = {
   id: string;
@@ -37,6 +37,8 @@ type SurveyPage = {
 
 type Survey = {
   id: string;
+  canEdit: boolean;
+  canManageAccess: boolean;
   shareCode?: string | null;
   title: string;
   description?: string | null;
@@ -88,7 +90,6 @@ export default function EditSurvey() {
   const [mobileQuickNavOpen, setMobileQuickNavOpen] = useState(false);
   const desktopQuickNavRailRef = useRef<HTMLDivElement>(null);
   const desktopQuickNavHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const currentUser = getUser();
 
   useEffect(() => () => {
     if (desktopQuickNavHoverTimeoutRef.current) clearTimeout(desktopQuickNavHoverTimeoutRef.current);
@@ -119,7 +120,7 @@ export default function EditSurvey() {
           options: Array.isArray(question.options) ? question.options : [],
         })),
       }));
-      setSurvey(data);
+      setSurvey(withSurveyActions(data));
       setConditions(data.conditions || []);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Có lỗi khi tải khảo sát.");
@@ -354,6 +355,10 @@ export default function EditSurvey() {
     return <div className="mx-auto max-w-5xl px-5 py-10 text-sm text-error-500">{error || "Không tải được khảo sát."}</div>;
   }
 
+  if (!survey.canEdit) {
+    return <div className="mx-auto max-w-5xl px-5 py-10 text-sm text-error-500">Bạn không có quyền chỉnh sửa khảo sát này.</div>;
+  }
+
 
   const QuickNav = ({ mobile = false }: { mobile?: boolean }) => {
     const navItems = [
@@ -495,7 +500,7 @@ export default function EditSurvey() {
           <button type="button" onClick={() => setShowPublication(true)} className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-50 dark:border-amber-500/30 dark:bg-gray-900 dark:text-amber-300 dark:hover:bg-amber-500/10">
             <FiCalendar size={16} /> Xuất bản & lịch
           </button>
-          {(currentUser?.permissions.includes("survey_update_all") || String(currentUser?.id) === String(survey.creatorUserId)) && (
+          {survey.canManageAccess && (
             <button type="button" onClick={() => setShowAccess(true)} className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-500/30 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-violet-500/10">
               <FiUsers size={16} /> Quyền truy cập
             </button>
