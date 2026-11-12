@@ -12,12 +12,14 @@ export type SurveyStatus = "DRAFT" | "SCHEDULED" | "OPEN" | "CLOSED";
 
 export type PublishableSurvey = {
   id: string;
+  canEdit?: boolean;
   title: string;
   description?: string | null;
   status?: SurveyStatus | string | null;
   openAt?: string | null;
   closeAt?: string | null;
   scheduleWarnings?: string[];
+  googleIntegration?: any;
 };
 
 const statusMeta: Record<SurveyStatus, { label: string; className: string; description: string }> = {
@@ -112,7 +114,7 @@ export default function SurveyPublicationModal({
     setError("");
     setSuccess("");
     try {
-      const scheduled = await updateSchedule();
+      const scheduled = current.canEdit ? await updateSchedule() : current;
       setCurrent(scheduled);
       onChanged(scheduled);
       const token = getToken();
@@ -145,6 +147,23 @@ export default function SurveyPublicationModal({
       : { action: "LOCK" as const, label: "Khóa khảo sát", icon: FiLock };
   const PrimaryIcon = primaryAction.icon;
 
+  if (current.googleIntegration) {
+    return (
+      <Modal isOpen onClose={onClose} title="Khảo sát Google Forms" description={current.title} className="max-w-md">
+        <div className="space-y-4 py-2">
+          <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+            Khảo sát này được tích hợp từ Google Forms nên đã tắt tính năng lên lịch nội bộ. Khảo sát sẽ tự động mở hoặc đóng theo tùy chọn <em>&quot;Chấp nhận phản hồi&quot;</em> trên Google Forms.
+          </p>
+          <div className="flex justify-end pt-2">
+            <button type="button" onClick={onClose} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700">
+              Đã hiểu
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal isOpen onClose={onClose} blocking={busy != null} title="Xuất bản và lên lịch" description={current.title} className="max-w-2xl">
       <div className="space-y-5">
@@ -166,15 +185,15 @@ export default function SurveyPublicationModal({
             <div>
               <label htmlFor="survey-open-at" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Mở từ</label>
               <div className="mt-1.5 flex items-center gap-2">
-                <DateTimePicker id="survey-open-at" value={openAt} onChange={setOpenAt} placeholder="Chọn ngày và giờ mở" disabled={busy != null} />
-                <button type="button" onClick={() => setOpenAt("")} disabled={!openAt || busy != null} title="Xóa giờ mở" aria-label="Xóa giờ mở" className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:border-error-200 hover:bg-error-50 hover:text-error-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500 disabled:cursor-not-allowed disabled:opacity-35 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-error-500/10 dark:hover:text-error-400"><FiX size={18} /></button>
+                <DateTimePicker id="survey-open-at" value={openAt} onChange={setOpenAt} placeholder="Chọn ngày và giờ mở" disabled={busy != null || !current.canEdit} />
+                <button type="button" onClick={() => setOpenAt("")} disabled={!openAt || busy != null || !current.canEdit} title="Xóa giờ mở" aria-label="Xóa giờ mở" className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:border-error-200 hover:bg-error-50 hover:text-error-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500 disabled:cursor-not-allowed disabled:opacity-35 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-error-500/10 dark:hover:text-error-400"><FiX size={18} /></button>
               </div>
             </div>
             <div>
               <label htmlFor="survey-close-at" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Đóng lúc</label>
               <div className="mt-1.5 flex items-center gap-2">
-                <DateTimePicker id="survey-close-at" value={closeAt} onChange={setCloseAt} placeholder="Chọn ngày và giờ đóng" disabled={busy != null} />
-                <button type="button" onClick={() => setCloseAt("")} disabled={!closeAt || busy != null} title="Xóa giờ đóng" aria-label="Xóa giờ đóng" className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:border-error-200 hover:bg-error-50 hover:text-error-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500 disabled:cursor-not-allowed disabled:opacity-35 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-error-500/10 dark:hover:text-error-400"><FiX size={18} /></button>
+                <DateTimePicker id="survey-close-at" value={closeAt} onChange={setCloseAt} placeholder="Chọn ngày và giờ đóng" disabled={busy != null || !current.canEdit} />
+                <button type="button" onClick={() => setCloseAt("")} disabled={!closeAt || busy != null || !current.canEdit} title="Xóa giờ đóng" aria-label="Xóa giờ đóng" className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:border-error-200 hover:bg-error-50 hover:text-error-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500 disabled:cursor-not-allowed disabled:opacity-35 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-error-500/10 dark:hover:text-error-400"><FiX size={18} /></button>
               </div>
             </div>
           </div>
@@ -191,7 +210,7 @@ export default function SurveyPublicationModal({
 
         <div className="flex flex-col-reverse gap-2.5 border-t border-gray-100 pt-4 sm:flex-row sm:justify-end dark:border-gray-800">
           <button type="button" onClick={onClose} disabled={busy != null} className="h-11 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Đóng</button>
-          <button type="button" onClick={() => void saveSchedule()} disabled={busy != null} className="h-11 rounded-xl border border-brand-200 px-4 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 disabled:opacity-50 dark:border-brand-500/30 dark:text-brand-300 dark:hover:bg-brand-500/10">{busy === "SAVE" ? "Đang lưu…" : "Lưu lịch"}</button>
+          <button type="button" onClick={() => void saveSchedule()} disabled={busy != null || !current.canEdit} className="h-11 rounded-xl border border-brand-200 px-4 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 disabled:opacity-50 dark:border-brand-500/30 dark:text-brand-300 dark:hover:bg-brand-500/10">{busy === "SAVE" ? "Đang lưu…" : "Lưu lịch"}</button>
           <button type="button" onClick={() => void changeStatus(primaryAction.action)} disabled={busy != null} className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition disabled:opacity-50 ${primaryAction.action === "LOCK" ? "bg-error-600 hover:bg-error-700" : "bg-brand-600 hover:bg-brand-700"}`}>
             <PrimaryIcon size={16} /> {busy === primaryAction.action ? "Đang xử lý…" : primaryAction.label}
           </button>

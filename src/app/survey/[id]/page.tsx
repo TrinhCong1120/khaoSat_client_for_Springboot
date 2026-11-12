@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { FiArrowLeft, FiArrowRight, FiCheck, FiClock, FiLock } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight, FiCheck, FiClock, FiLock, FiCpu } from "react-icons/fi";
 import DatePicker from "@/components/form/date-picker";
 import ProvinceWardSelect from "@/components/form/ProvinceWardSelect";
+import SurveyMatrixField from "@/components/surveys/SurveyMatrixField";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import type { ProvinceWardValue } from "@/components/form/ProvinceWardSelect";
 import {
@@ -230,55 +231,97 @@ export default function PublicSurvey() {
       .map((x) => x.trim())
       .filter(Boolean);
 
-  const isEnabled = (questionId: string) => {
-    if (!survey.conditions?.length) return true;
+  const checkConditionMatched = (c: any, answer: any, sourceQuestion: any) => {
+    if (!answer) return false;
+    let matched = false;
+    const sourceTypeCode = getQuestionTypeCode(sourceQuestion || {});
+
+    if (sourceTypeCode === "ADDRESS" || isAddressQuestionType(sourceQuestion || {})) {
+      const tokens = parseSourceValueTokens(c.sourceValue);
+      if (tokens.length > 0) {
+        const province = String(answer.province ?? "").trim();
+        const ward = String(answer.ward ?? "").trim();
+        matched = tokens.some((t) => t === province || t === ward);
+      }
+    } else if (answer.optionIds?.length) {
+      const conditionOptionIds = parseConditionOptionIds(c.sourceValue);
+
+      if (conditionOptionIds.length > 0) {
+        matched = conditionOptionIds.some((oid) =>
+          answer.optionIds.includes(oid)
+        );
+      } else {
+        const selectedOptions = sourceQuestion?.options?.filter((o: any) =>
+          answer.optionIds.includes(o.id)
+        );
+
+        matched = selectedOptions?.some(
+          (o: any) => o.optionText === c.sourceValue
+        );
+      }
+    }
+
+    if (answer.answerText != null && answer.answerText !== "") {
+      matched = String(answer.answerText).trim() === String(c.sourceValue).trim();
+    }
+
+    return matched;
+  };
+
+  const isPageEnabled = (pageId: string) => {
+    if (!survey?.conditions?.length) return true;
 
     const related = survey.conditions.filter(
-      (c: any) => c.targetQuestionId === questionId
+      (c: any) => (c.targetType === "PAGE" || (!c.targetQuestionId && c.targetPageId)) && c.targetPageId === pageId
     );
 
     if (related.length === 0) return true;
 
-    let enabled = true;
+    const allQuestions = (survey.pages || []).flatMap((p: any) => p.questions || []);
 
+    let enabled = true;
     for (const c of related) {
       const answer = answers[c.sourceQuestionId];
-      if (!answer) continue;
+      const sourceQuestion = allQuestions.find((q: any) => q.id === c.sourceQuestionId);
+      const matched = checkConditionMatched(c, answer, sourceQuestion);
 
-      let matched = false;
-      const sourceQuestion = survey.pages
-        .flatMap((p: any) => p.questions)
-        .find((q: any) => q.id === c.sourceQuestionId);
-      const sourceTypeCode = getQuestionTypeCode(sourceQuestion || {});
-
-      if (sourceTypeCode === "ADDRESS" || isAddressQuestionType(sourceQuestion || {})) {
-        const tokens = parseSourceValueTokens(c.sourceValue);
-        if (tokens.length > 0) {
-          const province = String(answer.province ?? "").trim();
-          const ward = String(answer.ward ?? "").trim();
-          matched = tokens.some((t) => t === province || t === ward);
-        }
-      } else if (answer.optionIds?.length) {
-        const conditionOptionIds = parseConditionOptionIds(c.sourceValue);
-
-        if (conditionOptionIds.length > 0) {
-          matched = conditionOptionIds.some((oid) =>
-            answer.optionIds.includes(oid)
-          );
-        } else {
-          const selectedOptions = sourceQuestion?.options?.filter((o: any) =>
-            answer.optionIds.includes(o.id)
-          );
-
-          matched = selectedOptions?.some(
-            (o: any) => o.optionText === c.sourceValue
-          );
-        }
+      const action = String(c.action || "").toUpperCase();
+      if (action === "SHOW" && !matched) {
+        enabled = false;
       }
-
-      if (answer.answerText) {
-        matched = answer.answerText === c.sourceValue;
+      if (action === "HIDE" && matched) {
+        enabled = false;
       }
+    }
+    return enabled;
+  };
+
+  const isEnabled = (questionId: string) => {
+    if (!survey) return true;
+
+    // Kiểm tra xem trang chứa câu hỏi này có bị ẩn theo điều kiện cấp trang không
+    const pageOfQuestion = (survey.pages || []).find((p: any) =>
+      (p.questions || []).some((q: any) => q.id === questionId)
+    );
+    if (pageOfQuestion && !isPageEnabled(pageOfQuestion.id)) {
+      return false;
+    }
+
+    if (!survey.conditions?.length) return true;
+
+    const related = survey.conditions.filter(
+      (c: any) => (!c.targetType || c.targetType === "QUESTION") && c.targetQuestionId === questionId
+    );
+
+    if (related.length === 0) return true;
+
+    const allQuestions = (survey.pages || []).flatMap((p: any) => p.questions || []);
+
+    let enabled = true;
+    for (const c of related) {
+      const answer = answers[c.sourceQuestionId];
+      const sourceQuestion = allQuestions.find((q: any) => q.id === c.sourceQuestionId);
+      const matched = checkConditionMatched(c, answer, sourceQuestion);
 
       const action = String(c.action || "").toUpperCase();
       if (action === "SHOW" && !matched) {
@@ -291,6 +334,143 @@ export default function PublicSurvey() {
 
     return enabled;
   };
+
+  // Tính nhẩm tổng hợp số liệu tiêu chí cha - con & bảng biểu real-time
+  const calculateAggregatedValue = (
+    targetQ: any,
+    allQuestions: any[],
+    currentAnswers: Record<string, any>
+  ): number | null => {
+    const aggType = String(targetQ.aggregationType || "NONE").toUpperCase();
+    if (aggType === "NONE") return null;
+
+    const children = allQuestions.filter((q) => q.parentId === targetQ.id);
+
+    // Bóc tách từ ma trận / dynamic table nếu có
+    const targetTypeCode = getQuestionTypeCode(targetQ);
+    if (["DYNAMIC_TABLE", "MATRIX_INPUT"].includes(targetTypeCode)) {
+      const rawMatrixData = currentAnswers[targetQ.id]?.matrixData;
+      if (rawMatrixData) {
+        try {
+          const parsed = typeof rawMatrixData === "string" ? JSON.parse(rawMatrixData) : rawMatrixData;
+          const numbers: number[] = [];
+          if (Array.isArray(parsed)) {
+            for (const row of parsed) {
+              for (const val of Object.values(row)) {
+                const num = parseFloat(String(val));
+                if (Number.isFinite(num)) numbers.push(num);
+              }
+            }
+          } else if (typeof parsed === "object") {
+            for (const rowVal of Object.values(parsed)) {
+              if (typeof rowVal === "object" && rowVal != null) {
+                for (const colVal of Object.values(rowVal as object)) {
+                  const num = parseFloat(String(colVal));
+                  if (Number.isFinite(num)) numbers.push(num);
+                }
+              }
+            }
+          }
+          if (numbers.length > 0) {
+            const sum = numbers.reduce((a, b) => a + b, 0);
+            if (aggType === "SUM") return Math.round(sum * 100) / 100;
+            if (aggType === "AVG") return Math.round((sum / numbers.length) * 100) / 100;
+          }
+        } catch {}
+      }
+    }
+
+    if (children.length === 0) return null;
+
+    const childValues: { val: number; weight: number; id: string }[] = [];
+    for (const child of children) {
+      const rawVal = currentAnswers[child.id]?.answerNumber;
+      if (rawVal != null && rawVal !== "") {
+        const num = parseFloat(String(rawVal));
+        if (Number.isFinite(num)) {
+          childValues.push({
+            val: num,
+            weight: child.weight != null && !isNaN(Number(child.weight)) ? Number(child.weight) : 1.0,
+            id: String(child.id),
+          });
+        }
+      }
+    }
+
+    if (childValues.length === 0) return null;
+
+    if (aggType === "SUM") {
+      const sum = childValues.reduce((acc, c) => acc + c.val, 0);
+      return Math.round(sum * 100) / 100;
+    }
+
+    if (aggType === "AVG") {
+      const sum = childValues.reduce((acc, c) => acc + c.val, 0);
+      return Math.round((sum / childValues.length) * 100) / 100;
+    }
+
+    if (aggType === "WEIGHTED") {
+      let weightedSum = 0;
+      let totalWeight = 0;
+      for (const c of childValues) {
+        weightedSum += c.val * c.weight;
+        totalWeight += c.weight;
+      }
+      if (totalWeight <= 0) return 0;
+      return Math.round((weightedSum / totalWeight) * 100) / 100;
+    }
+
+    if (aggType === "CUSTOM_FORMULA") {
+      const formula = targetQ.aggregationFormula;
+      if (!formula) return null;
+      try {
+        let expr = formula;
+        for (const c of childValues) {
+          expr = expr.replaceAll(`[Q${c.id}]`, String(c.val));
+          expr = expr.replaceAll(`[${c.id}]`, String(c.val));
+        }
+        if (/^[0-9+\-*/().\s]+$/.test(expr)) {
+          // eslint-disable-next-line no-eval
+          const res = Function(`"use strict"; return (${expr})`)();
+          if (Number.isFinite(res)) return Math.round(res * 100) / 100;
+        }
+      } catch {}
+    }
+
+    return null;
+  };
+
+  // Real-time hierarchy aggregation sync
+  useEffect(() => {
+    if (!survey?.pages) return;
+    const allQuestions = survey.pages.flatMap((p: any) => p.questions || []);
+    const parentQuestions = allQuestions.filter(
+      (q: any) => q.aggregationType && q.aggregationType !== "NONE"
+    );
+
+    if (parentQuestions.length === 0) return;
+
+    let changed = false;
+    const nextAnswers = { ...answers };
+
+    for (const parent of parentQuestions) {
+      const computed = calculateAggregatedValue(parent, allQuestions, answers);
+      const currentAns = answers[parent.id]?.answerNumber;
+
+      if (computed != null && currentAns !== computed) {
+        nextAnswers[parent.id] = {
+          ...nextAnswers[parent.id],
+          questionId: parent.id,
+          answerNumber: computed,
+        };
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      setAnswers(nextAnswers);
+    }
+  }, [answers, survey]);
 
   const updateAnswer = (qid: string, value: any, type: string) => {
     if (!surveyStartedEventRef.current && id && trackingSessionId) {
@@ -373,6 +553,11 @@ export default function PublicSurvey() {
 
   const answerIsEmpty = (q: any, answer: any) => {
     const typeCode = getQuestionTypeCode(q);
+    if (["MATRIX_SINGLE", "MATRIX_MULTI", "MATRIX_INPUT", "DYNAMIC_TABLE"].includes(typeCode)) {
+      if (!answer?.matrixData) return true;
+      const str = typeof answer.matrixData === "string" ? answer.matrixData : JSON.stringify(answer.matrixData);
+      return str.trim().length === 0 || str === "[]" || str === "{}";
+    }
     if (typeCode === "ADDRESS" || isAddressQuestionType(q)) {
       return answer == null || !hasNonBlank(answer.province) || !hasNonBlank(answer.ward) ||
         !Number.isFinite(Number(answer.provinceCode)) || Number(answer.provinceCode) <= 0 ||
@@ -483,6 +668,10 @@ export default function PublicSurvey() {
         payload.provinceCode = answer.provinceCode == null ? null : String(answer.provinceCode);
         payload.wardCode = answer.wardCode == null ? null : String(answer.wardCode);
         payload.addressDetail = answer.addressDetail ?? "";
+      } else if (["MATRIX_SINGLE", "MATRIX_MULTI", "MATRIX_INPUT", "DYNAMIC_TABLE"].includes(typeCode)) {
+        if (answer.matrixData != null) {
+          payload.matrixData = typeof answer.matrixData === "string" ? answer.matrixData : JSON.stringify(answer.matrixData);
+        }
       }
       return payload;
     });
@@ -572,14 +761,18 @@ export default function PublicSurvey() {
   };
 
   const handleNextPage = async () => {
-    const pageQuestions = survey.pages[currentPage]?.questions || [];
+    const allPages = survey?.pages || [];
+    const visiblePages = allPages.filter((p: any) => isPageEnabled(p.id));
+    const safeCurrentPage = Math.min(currentPage, Math.max(0, visiblePages.length - 1));
+    const activePage = visiblePages[safeCurrentPage];
+    const pageQuestions = (activePage?.questions || []).filter((q: any) => isEnabled(q.id));
     const result = await validateAnswersWithBackend(pageQuestions);
     if (result?.valid) {
-      const pageId = survey.pages[currentPage]?.id;
+      const pageId = activePage?.id;
       if (id && trackingSessionId && pageId) {
         void sendTrackingEvent(String(id), trackingSessionId, "PAGE_COMPLETED", String(pageId));
       }
-      goToPage(currentPage + 1);
+      goToPage(safeCurrentPage + 1);
       return;
     }
 
@@ -587,8 +780,12 @@ export default function PublicSurvey() {
   };
 
   const handleSubmit = async () => {
-    const allQuestions = survey.pages.flatMap((page: any) => page.questions || []);
-    const validationResult = await validateAnswersWithBackend(allQuestions);
+    const allPages = survey?.pages || [];
+    const visiblePages = allPages.filter((p: any) => isPageEnabled(p.id));
+    const activeQuestions = visiblePages
+      .flatMap((page: any) => page.questions || [])
+      .filter((q: any) => isEnabled(q.id));
+    const validationResult = await validateAnswersWithBackend(activeQuestions);
     if (!validationResult?.valid) return;
 
     const payload = buildPublicSurveySubmitAnswers(survey, answers)
@@ -710,12 +907,14 @@ export default function PublicSurvey() {
     );
   }
 
-  const pages = survey.pages || [];
-  const pageCount = Math.max(pages.length, 1);
-  const page = pages[currentPage];
+  const allPages = survey.pages || [];
+  const visiblePages = allPages.filter((p: any) => isPageEnabled(p.id));
+  const pageCount = Math.max(visiblePages.length, 1);
+  const safeCurrentPage = Math.min(currentPage, Math.max(0, visiblePages.length - 1));
+  const page = visiblePages[safeCurrentPage];
   const pageQuestions = page?.questions || [];
-  const questionOffset = pages
-    .slice(0, currentPage)
+  const questionOffset = visiblePages
+    .slice(0, safeCurrentPage)
     .reduce((total: number, item: any) => total + (item.questions?.length || 0), 0);
 
   return (
@@ -735,13 +934,13 @@ export default function PublicSurvey() {
           {getMediaUrls(survey, "VIDEO").map((url, index) => <video key={`${url}-${index}`} src={resolveMediaUrl(url)} controls className="mt-4 max-h-72 w-full rounded-lg" />)}
           {getMediaUrls(survey, "AUDIO").map((url, index) => <audio key={`${url}-${index}`} src={resolveMediaUrl(url)} controls className="mt-4 w-full" />)}
           <div className="mb-2 mt-6 flex justify-between text-sm text-gray-600 dark:text-gray-300">
-            <span>Trang {Math.min(currentPage + 1, pageCount)} / {pageCount}</span>
-            <span>{Math.round(((currentPage + 1) / pageCount) * 100)}%</span>
+            <span>Trang {Math.min(safeCurrentPage + 1, pageCount)} / {pageCount}</span>
+            <span>{Math.round(((safeCurrentPage + 1) / pageCount) * 100)}%</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
             <div
               className="h-full bg-brand-500 transition-[width] duration-300"
-              style={{ width: `${((currentPage + 1) / pageCount) * 100}%` }}
+              style={{ width: `${((safeCurrentPage + 1) / pageCount) * 100}%` }}
             />
           </div>
         </section>
@@ -759,6 +958,9 @@ export default function PublicSurvey() {
             const enabled = isEnabled(q.id);
             const typeCode = getQuestionTypeCode(q);
             const isAddress = typeCode === "ADDRESS" || isAddressQuestionType(q);
+            const isMatrix = ["MATRIX_SINGLE", "MATRIX_MULTI", "MATRIX_INPUT", "DYNAMIC_TABLE"].includes(typeCode);
+            const isChildQuestion = Boolean(q.parentId || (q.level && q.level > 1));
+            const isAutoCalculated = Boolean(q.aggregationType && q.aggregationType !== "NONE");
             const choiceOptions = Array.isArray(q.options) ? q.options : [];
             const hasImageOptions =
               (typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE") &&
@@ -784,7 +986,9 @@ export default function PublicSurvey() {
                             ? !hasNonBlank(answer.answerDate)
                             : typeCode === "ADDRESS" || isAddressQuestionType(q)
                               ? !hasNonBlank(answer.province) || !hasNonBlank(answer.ward)
-                              : !Array.isArray(answer.optionIds) || answer.optionIds.length === 0);
+                              : ["MATRIX_SINGLE", "MATRIX_MULTI", "MATRIX_INPUT", "DYNAMIC_TABLE"].includes(typeCode)
+                                ? !answer?.matrixData || String(answer.matrixData).trim().length === 0
+                                : !Array.isArray(answer.optionIds) || answer.optionIds.length === 0);
                     if (q.isRequired && isEmpty) {
                       setErrors((prev: any) => ({ ...prev, [q.id]: "Câu hỏi bắt buộc chưa được trả lời" }));
                     }
@@ -793,7 +997,7 @@ export default function PublicSurvey() {
                 }}
                 className={`mb-3 min-w-0 scroll-mt-20 rounded-xl border bg-white p-4 shadow-theme-xs transition-colors dark:bg-gray-900 sm:p-6 ${
                   enabled ? "border-gray-200 dark:border-gray-800" : "border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-900/60"
-                }`}
+                } ${isChildQuestion ? "ml-4 sm:ml-8 border-l-4 !border-l-brand-400 dark:!border-l-brand-500 pl-4 sm:pl-6 bg-slate-50/40 dark:bg-slate-900/40" : ""}`}
               >
                 {!enabled && (
                   <div className="mb-4 flex items-start gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-100 px-4 py-3 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
@@ -818,6 +1022,22 @@ export default function PublicSurvey() {
                   {questionOffset + questionIndex + 1}. {q.questionText}
                   {q.isRequired && <span className="ml-1 text-red-500">*</span>}
                 </div>
+
+                {isChildQuestion && (
+                  <div className="mt-1 mb-2">
+                    <span className="inline-flex items-center text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
+                      Tiêu chí thành phần {q.weight && q.weight !== 1 ? `(Trọng số: ${q.weight})` : ""}
+                    </span>
+                  </div>
+                )}
+
+                {isAutoCalculated && (
+                  <div className="mt-1 mb-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
+                      <FiCpu size={13} /> Tự động tổng hợp ({q.aggregationType})
+                    </span>
+                  </div>
+                )}
 
 
                 <div className={!enabled ? "opacity-60" : ""}>
@@ -847,6 +1067,15 @@ export default function PublicSurvey() {
                     </div>
                   ) : (
                     <>
+                      {isMatrix && (
+                        <SurveyMatrixField
+                          question={q}
+                          value={answers[q.id]?.matrixData}
+                          disabled={!enabled}
+                          onChange={(val) => updateAnswer(q.id, val, "matrixData")}
+                        />
+                      )}
+
                       {(typeCode === "SINGLE_CHOICE" || typeCode === "MULTIPLE_CHOICE") && (
                         <div className={hasImageOptions ? "mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-3" : ""}>
                           {choiceOptions.map((o: ChoiceOptionMedia) => {
@@ -932,18 +1161,30 @@ export default function PublicSurvey() {
                       )}
 
                       {typeCode === "NUMBER" && (
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          name={`question-${q.id}-number`}
-                          aria-labelledby={`question-label-${q.id}`}
-                          aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
-                          className="min-h-11 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[15px] transition-[border-color,box-shadow] placeholder:text-gray-400 focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/15 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:disabled:bg-gray-800"
-                          placeholder="Nhập giá trị…"
-                          disabled={!enabled}
-                          value={answers[q.id]?.answerNumber ?? ""}
-                          onChange={(e) => updateAnswer(q.id, e.target.value, "answerNumber")}
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            name={`question-${q.id}-number`}
+                            aria-labelledby={`question-label-${q.id}`}
+                            aria-describedby={errors[q.id] ? `question-error-${q.id}` : undefined}
+                            className={`min-h-11 w-full min-w-0 rounded-lg border px-3 py-2.5 text-[15px] transition-[border-color,box-shadow] placeholder:text-gray-400 focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/15 disabled:cursor-not-allowed ${
+                              isAutoCalculated
+                                ? "bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 font-bold pr-10 cursor-not-allowed"
+                                : "bg-white border-gray-300 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:disabled:bg-gray-800"
+                            }`}
+                            placeholder={isAutoCalculated ? "Tự động tính từ các tiêu chí thành phần…" : "Nhập giá trị…"}
+                            disabled={!enabled || isAutoCalculated}
+                            readOnly={isAutoCalculated}
+                            value={answers[q.id]?.answerNumber ?? ""}
+                            onChange={(e) => updateAnswer(q.id, e.target.value, "answerNumber")}
+                          />
+                          {isAutoCalculated && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400" title={`Tự động tổng hợp (${q.aggregationType})`}>
+                              <FiCpu size={18} />
+                            </span>
+                          )}
+                        </div>
                       )}
 
                       {typeCode === "DATE" && (
@@ -965,17 +1206,17 @@ export default function PublicSurvey() {
 
           <div className="mb-12 mt-6 flex flex-col-reverse gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
             <div className="min-w-0">
-              {currentPage > 0 && (
+              {safeCurrentPage > 0 && (
                 <button
                   type="button"
-                  onClick={() => goToPage(currentPage - 1)}
+                  onClick={() => goToPage(safeCurrentPage - 1)}
                   className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 min-[420px]:w-auto"
                 >
                   <FiArrowLeft /> Quay lại
                 </button>
               )}
             </div>
-            {currentPage < pageCount - 1 ? (
+            {safeCurrentPage < pageCount - 1 ? (
               <button
                 type="button"
                 data-validation-navigation="true"

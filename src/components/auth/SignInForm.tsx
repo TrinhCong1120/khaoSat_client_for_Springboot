@@ -10,6 +10,7 @@ import {
   EyeCloseIcon,
   EyeIcon,
 } from "@/icons";
+import { FiAlertCircle, FiCheckCircle, FiX } from "react-icons/fi";
 
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
@@ -103,6 +104,11 @@ export default function SignInForm() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    username?: string;
+    password?: string;
+  }>({});
 
   // ========================================
   // REMEMBER LOGIN
@@ -130,12 +136,25 @@ export default function SignInForm() {
     if (loading) return;
 
     setError(null);
+    setSuccess(null);
+    setFieldErrors({});
 
     const trimmedUsername = username.trim();
 
-    // Validate
-    if (!trimmedUsername || !password) {
-      setError("Vui lòng nhập đầy đủ thông tin");
+    const newFieldErrors: { username?: string; password?: string } = {};
+    if (!trimmedUsername) {
+      newFieldErrors.username = "Vui lòng nhập tên đăng nhập";
+    }
+    if (!password) {
+      newFieldErrors.password = "Vui lòng nhập mật khẩu";
+    }
+
+    if (Object.keys(newFieldErrors).length > 0) {
+      setFieldErrors(newFieldErrors);
+      setError("Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu");
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
       return;
     }
 
@@ -246,10 +265,11 @@ export default function SignInForm() {
             break;
         }
 
-        setError(
-          getApiErrorMessage(data, fallback)
-        );
-
+        const errorMsg = getApiErrorMessage(data, fallback);
+        setError(errorMsg);
+        if (typeof window !== "undefined") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
         return;
       }
 
@@ -314,25 +334,30 @@ export default function SignInForm() {
       );
 
       // ====================================
-      // REDIRECT
+      // REDIRECT & SUCCESS NOTIFICATION
       // ====================================
 
+      setSuccess("Đăng nhập thành công! Đang chuyển hướng...");
       router.push("/admin");
 
     } catch (err) {
       console.error("Login error:", err);
 
+      let errorMsg = "Đã xảy ra lỗi khi đăng nhập";
       if (err instanceof TypeError) {
-        setError(
-          "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng hoặc API."
-        );
+        errorMsg =
+          "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng hoặc API.";
       } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Đã xảy ra lỗi khi đăng nhập");
+        errorMsg = err.message;
+      }
+
+      setError(errorMsg);
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
 
     } finally {
+      // Nếu có lỗi thì mở lại nút, nếu đăng nhập thành công giữ trạng thái chuyển trang
       setLoading(false);
     }
   };
@@ -343,6 +368,35 @@ export default function SignInForm() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col px-1 sm:px-6 lg:w-1/2 lg:px-10">
+
+      {/* FLOATING MOBILE TOAST NOTIFICATION */}
+      {error && (
+        <div
+          role="alert"
+          className="fixed top-4 left-4 right-4 z-50 flex items-start gap-3 rounded-2xl border border-red-200 bg-white/95 p-4 text-sm text-red-800 shadow-2xl ring-1 ring-red-500/20 backdrop-blur-md dark:border-red-800/80 dark:bg-gray-900/95 dark:text-red-200 animate-in slide-in-from-top-4 duration-200 sm:hidden"
+        >
+          <FiAlertCircle className="mt-0.5 size-5 shrink-0 text-red-600 dark:text-red-400" />
+          <div className="flex-1 font-medium leading-snug">{error}</div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="shrink-0 rounded-lg p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            aria-label="Đóng thông báo"
+          >
+            <FiX className="size-4" />
+          </button>
+        </div>
+      )}
+
+      {success && (
+        <div
+          role="status"
+          className="fixed top-4 left-4 right-4 z-50 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white/95 p-4 text-sm text-emerald-800 shadow-2xl ring-1 ring-emerald-500/20 backdrop-blur-md dark:border-emerald-800/80 dark:bg-gray-900/95 dark:text-emerald-200 animate-in slide-in-from-top-4 duration-200 sm:hidden"
+        >
+          <FiCheckCircle className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <div className="flex-1 font-medium">{success}</div>
+        </div>
+      )}
 
       {/* BACK */}
       <div className="mx-auto mb-8 w-full max-w-md pt-2 sm:pt-10">
@@ -375,13 +429,33 @@ export default function SignInForm() {
 
             <div className="space-y-6">
 
-              {/* ERROR MESSAGE */}
+              {/* INLINE ERROR MESSAGE */}
               {error && (
                 <div
                   role="alert"
-                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"
+                  className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200 animate-in fade-in duration-200"
                 >
-                  {error}
+                  <FiAlertCircle className="mt-0.5 size-5 shrink-0 text-red-600 dark:text-red-400" />
+                  <div className="flex-1 font-medium">{error}</div>
+                  <button
+                    type="button"
+                    onClick={() => setError(null)}
+                    className="shrink-0 text-red-500 hover:text-red-700"
+                    aria-label="Đóng thông báo"
+                  >
+                    <FiX className="size-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* INLINE SUCCESS MESSAGE */}
+              {success && (
+                <div
+                  role="status"
+                  className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200 animate-in fade-in duration-200"
+                >
+                  <FiCheckCircle className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <div className="flex-1 font-medium">{success}</div>
                 </div>
               )}
 
@@ -399,9 +473,16 @@ export default function SignInForm() {
                   autoComplete="username"
                   placeholder="Nhập tên đăng nhập…"
                   value={username}
+                  error={Boolean(fieldErrors.username)}
+                  hint={fieldErrors.username}
                   onChange={(
                     e: React.ChangeEvent<HTMLInputElement>
-                  ) => setUsername(e.target.value)}
+                  ) => {
+                    setUsername(e.target.value);
+                    if (fieldErrors.username) {
+                      setFieldErrors((prev) => ({ ...prev, username: undefined }));
+                    }
+                  }}
                 />
               </div>
 
@@ -421,9 +502,16 @@ export default function SignInForm() {
                     autoComplete="current-password"
                     placeholder="Nhập mật khẩu…"
                     value={password}
+                    error={Boolean(fieldErrors.password)}
+                    hint={fieldErrors.password}
                     onChange={(
                       e: React.ChangeEvent<HTMLInputElement>
-                    ) => setPassword(e.target.value)}
+                    ) => {
+                      setPassword(e.target.value);
+                      if (fieldErrors.password) {
+                        setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                      }
+                    }}
                   />
 
                   <button
@@ -469,14 +557,23 @@ export default function SignInForm() {
 
               </div>
 
+              {/* HINT ERROR ABOVE BUTTON FOR MOBILE VIEW */}
+              {error && (
+                <p className="text-center text-xs font-semibold text-red-600 dark:text-red-400">
+                  {error}
+                </p>
+              )}
+
               {/* SUBMIT BUTTON */}
               <Button
                 type="submit"
                 className="w-full"
                 size="sm"
-                disabled={loading}
+                disabled={loading || Boolean(success)}
               >
-                {loading
+                {success
+                  ? "Đang chuyển hướng…"
+                  : loading
                   ? "Đang đăng nhập…"
                   : "Đăng nhập"}
               </Button>

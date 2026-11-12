@@ -14,6 +14,7 @@ const getToken = () =>
 // ======================
 interface Permission {
   permissionID: string;
+  code: string;
   type: string;
   isActive: boolean;
 }
@@ -81,7 +82,7 @@ const PermissionMatrixModal = ({
     isActive: boolean
   ) => {
     try {
-      await fetch(`${API_FUNCTIONS}/update-permission`, {
+      const response = await fetch(`${API_FUNCTIONS}/update-permission`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -93,6 +94,7 @@ const PermissionMatrixModal = ({
           isActive,
         }),
       });
+      if (!response.ok) throw new Error(`Không cập nhật được quyền (${response.status})`);
 
       // ⚡ UPDATE UI NGAY
       setData((prev) =>
@@ -114,7 +116,7 @@ const PermissionMatrixModal = ({
     }
   };
 
-  const permissionTypes = data?.[0]?.permissions?.map((permission) => permission.type) || [];
+  const permissionColumns = data?.[0]?.permissions ?? [];
 
   // ======================
   // UI
@@ -138,12 +140,12 @@ const PermissionMatrixModal = ({
             <thead className="bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-b dark:border-gray-800">
               <tr>
                 <th className="whitespace-nowrap px-4 py-3 font-semibold">Vai trò</th>
-                {permissionTypes.map((type) => (
+                {permissionColumns.map((permission) => (
                   <th
-                    key={type}
+                    key={permission.permissionID}
                     className="whitespace-nowrap px-4 py-3 text-center font-semibold uppercase"
                   >
-                    {type}
+                    {permission.code}
                   </th>
                 ))}
               </tr>
@@ -162,10 +164,10 @@ const PermissionMatrixModal = ({
                   </td>
 
                   {/* PERMISSIONS */}
-                  {permissionTypes.map((type) => {
-                    const permission = row.permissions.find((item) => item.type === type);
+                  {permissionColumns.map((column) => {
+                    const permission = row.permissions.find((item) => item.permissionID === column.permissionID);
                     return (
-                      <td key={type} className="px-4 py-3 text-center">
+                      <td key={column.permissionID} className="px-4 py-3 text-center">
                         {permission ? (
                           <div className="flex justify-center">
                             <Checkbox

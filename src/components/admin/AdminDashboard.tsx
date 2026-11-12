@@ -1,51 +1,115 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Download, RefreshCw } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import Link from "next/link";
+import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
+  Calendar,
+  Check,
+  CheckCircle2,
+  Clock,
+  Compass,
+  Copy,
+  Download,
+  Eye,
+  FileSpreadsheet,
+  Filter,
+  FolderOpen,
+  Globe,
+  HelpCircle,
+  Layers,
+  MessageSquare,
+  PieChart,
+  Plus,
+  RefreshCw,
+  Search,
+  Share2,
+  Shield,
+  Smartphone,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Tv,
+  Users,
+} from "lucide-react";
+import EChartsContainer, { type EChartsOption } from "@/components/charts/EChartsContainer";
+import DateWheelPicker from "@/components/admin/DateWheelPicker";
+import DashboardPresentationModal from "@/components/admin/DashboardPresentationModal";
 import { API_DASHBOARD } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { getToken, getUser, isUserAdmin } from "@/lib/auth";
 import { fetchReport, reportParams, type Report, type SurveyPage, type Trend } from "@/lib/dashboard-report";
 import { formatViDecimal as dec, formatViInt as num } from "@/lib/dashboard";
-import DateWheelPicker from "@/components/admin/DateWheelPicker";
 
-const names: Record<string, string> = { DRAFT: "Bản nháp", SCHEDULED: "Lên lịch", OPEN: "Đang mở", CLOSED: "Đã đóng" };
-const colors = ["#64748b", "#f59e0b", "#2563eb", "#ef4444"];
-const panel = "min-w-0 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900";
-const field = "mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-slate-700 dark:bg-slate-950";
-const muted = "text-xs text-slate-600 dark:text-slate-300";
-const fmt = (value: number | null | undefined, suffix = "") => value == null ? "—" : dec(value) + suffix;
-const count = (value: number | null | undefined) => value == null ? "Chưa ghi nhận" : num(value);
-const duration = (value: number | null | undefined) => value == null ? "—" : dec(value / 1000) + " giây";
+const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string; color: string }> = {
+  OPEN: { label: "Đang mở", bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500", color: "#10b981" },
+  CLOSED: { label: "Đã đóng", bg: "bg-rose-50 dark:bg-rose-950/40", text: "text-rose-700 dark:text-rose-300", dot: "bg-rose-500", color: "#f43f5e" },
+  DRAFT: { label: "Bản nháp", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-700 dark:text-slate-300", dot: "bg-slate-400", color: "#64748b" },
+  SCHEDULED: { label: "Lên lịch", bg: "bg-amber-50 dark:bg-amber-950/40", text: "text-amber-700 dark:text-amber-300", dot: "bg-amber-500", color: "#f59e0b" },
+};
+
+const panel = "min-w-0 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-shadow duration-200 dark:border-slate-800/90 dark:bg-slate-900";
+const muted = "text-xs text-slate-500 dark:text-slate-400";
+const fmt = (value: number | null | undefined, suffix = "") => (value == null ? "—" : dec(value) + suffix);
+const count = (value: number | null | undefined) => (value == null ? "0" : num(value));
+const duration = (value: number | null | undefined) => (value == null ? "—" : dec(value / 1000) + "s");
+
 const vnToday = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 const dateStart = (date: string) => new Date(date + "T00:00:00+07:00").toISOString();
-const dateEnd = (date: string, now: number) => date === vnToday() ? new Date(now).toISOString() : new Date(Date.parse(date + "T00:00:00+07:00") + 86400000).toISOString();
+const dateEnd = (date: string, now: number) =>
+  date === vnToday() ? new Date(now).toISOString() : new Date(Date.parse(date + "T00:00:00+07:00") + 86400000).toISOString();
 const dateLabel = (date: string) => date.slice(8, 10) + "/" + date.slice(5, 7) + "/" + date.slice(0, 4);
 
-function Heading({ title, note }: { title: string; note?: string }) {
-  return <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><h2 className="text-base font-semibold tracking-tight">{title}</h2>{note && <p className={muted}>{note}</p>}</div>;
-}
-function Metric({ label, value, note, scope }: { label: string; value: string; note?: string; scope?: string }) {
-  return <div className="min-w-0 py-1"><div className="flex items-center justify-between gap-1"><p className="truncate text-xs text-slate-600 dark:text-slate-300">{label}</p>{scope && <span className="shrink-0 text-[10px] text-slate-500 dark:text-slate-400">{scope}</span>}</div><p className="mt-0.5 text-[22px] font-semibold leading-7 tabular-nums tracking-tight">{value}</p>{note && <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400" title={note}>{note}</p>}</div>;
-}
-function TrendValue({ value }: { value: Trend | null }) {
-  if (!value) return <span className="text-gray-500 dark:text-gray-400">Chưa ghi nhận</span>;
-  if (value.label) return <span className="text-gray-600 dark:text-gray-300">{value.label}{value.delta > 0 ? " (+" + num(value.delta) + ")" : ""}</span>;
-  const up = value.delta >= 0;
-  return <span className={"inline-flex items-center gap-1 font-semibold tabular-nums " + (up ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400")}>{up ? <ArrowUp size={15} aria-hidden /> : <ArrowDown size={15} aria-hidden />}{up ? "Tăng " : "Giảm "}{fmt(Math.abs(value.percent ?? 0), "%")} ({value.delta > 0 ? "+" : ""}{num(value.delta)})</span>;
-}
-function Distribution({ title, data }: { title: string; data: { label: string; count: number }[] }) {
-  const max = Math.max(1, ...data.map(x => x.count));
-  return <article className={panel}><h3 className="text-sm font-semibold">{title}</h3>{data.length ? <ul className="mt-3 space-y-2">{data.map(x => <li key={x.label}><div className="flex justify-between gap-3 text-xs"><span className="min-w-0 truncate" title={x.label}>{x.label === "UNKNOWN" ? "Không xác định" : x.label}</span><strong className="tabular-nums">{num(x.count)}</strong></div><div className="mt-1 h-1 bg-slate-100 dark:bg-slate-800"><div className="h-full bg-blue-600" style={{ width: String(x.count / max * 100) + "%" }} /></div></li>)}</ul> : <p className={"mt-3 " + muted}>Chưa có phiên trong phạm vi này.</p>}</article>;
-}
-function DataTable({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) {
-  return <details className="mt-2 text-xs"><summary className="cursor-pointer font-medium text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600 dark:text-blue-300">Xem số liệu theo mốc</summary><div className="mt-2 max-h-52 overflow-auto"><table className="min-w-full text-left"><thead><tr>{headers.map(x => <th key={x} scope="col" className="border-b border-slate-200 px-2 py-1 dark:border-slate-700">{x}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{row.map((cell, j) => j === 0 ? <th key={j} scope="row" className="border-b border-slate-100 px-2 py-1 font-normal dark:border-slate-800">{cell}</th> : <td key={j} className="border-b border-slate-100 px-2 py-1 tabular-nums dark:border-slate-800">{cell}</td>)}</tr>)}</tbody></table></div></details>;
+function MetricCard({
+  icon: Icon,
+  iconColor,
+  iconBg,
+  label,
+  value,
+  note,
+}: {
+  icon: React.ElementType;
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  value: string;
+  note?: React.ReactNode;
+}) {
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800/90 dark:bg-slate-900">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{label}</span>
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110 ${iconBg} ${iconColor}`}>
+          <Icon size={18} />
+        </div>
+      </div>
+      <strong className="mt-3 block text-2xl font-extrabold tabular-nums tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+        {value}
+      </strong>
+      {note && (
+        <div className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          {note}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdminDashboard() {
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [username, setUsername] = useState("");
+  const [scope, setScope] = useState<"all" | "my">(() => (typeof window !== "undefined" && isUserAdmin() ? "all" : "my"));
+  const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+
+  // Filters
+  const [preset, setPreset] = useState<"all" | "today" | "7d" | "30d" | "custom">("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [asOf, setAsOf] = useState(Date.now());
+
+  // Data states
   const [report, setReport] = useState<Report | null>(null);
   const [surveys, setSurveys] = useState<SurveyPage | null>(null);
   const [topFive, setTopFive] = useState<SurveyPage | null>(null);
@@ -53,177 +117,1456 @@ export default function AdminDashboard() {
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState("submissions");
   const [page, setPage] = useState(1);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Status flags
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(true);
   const [error, setError] = useState("");
   const [tableError, setTableError] = useState("");
-  const [topError, setTopError] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Initialize User & Permissions
+  useEffect(() => {
+    const user = getUser();
+    if (user) {
+      setUsername(user.username || "");
+      const admin = isUserAdmin();
+      setIsAdminUser(admin);
+      setScope(admin ? "all" : "my");
+    }
+  }, []);
+
+  // Handle Preset Changes
+  const handlePresetChange = (selected: "all" | "today" | "7d" | "30d" | "custom") => {
+    setPreset(selected);
+    setPage(1);
+    const today = vnToday();
+    if (selected === "all") {
+      setFromDate("");
+      setToDate("");
+      setShowDatePicker(false);
+    } else if (selected === "today") {
+      setFromDate(today);
+      setToDate(today);
+      setShowDatePicker(false);
+    } else if (selected === "7d") {
+      const past = new Date(Date.now() + 7 * 3600000 - 6 * 86400000).toISOString().slice(0, 10);
+      setFromDate(past);
+      setToDate(today);
+      setShowDatePicker(false);
+    } else if (selected === "30d") {
+      const past = new Date(Date.now() + 7 * 3600000 - 29 * 86400000).toISOString().slice(0, 10);
+      setFromDate(past);
+      setToDate(today);
+      setShowDatePicker(false);
+    } else {
+      setShowDatePicker(true);
+    }
+  };
+
   const valid = (!fromDate || fromDate <= vnToday()) && (!toDate || toDate <= vnToday()) && (!fromDate || !toDate || fromDate <= toDate);
   const period = useMemo(() => ({ from: fromDate ? dateStart(fromDate) : undefined, to: toDate ? dateEnd(toDate, asOf) : undefined }), [fromDate, toDate, asOf]);
-  const params = useMemo(() => reportParams(period.from, period.to), [period]);
-  const scope = !fromDate && !toDate ? "ALL" : fromDate && toDate ? dateLabel(fromDate) + " – " + dateLabel(toDate) : fromDate ? "Từ " + dateLabel(fromDate) : "Đến " + dateLabel(toDate);
+  const params = useMemo(() => reportParams(period.from, period.to, "AUTO", scope), [period, scope]);
 
+  const scopeLabel = useMemo(() => {
+    if (!fromDate && !toDate) return "Toàn thời gian";
+    if (fromDate && toDate) return fromDate === toDate ? dateLabel(fromDate) : `${dateLabel(fromDate)} – ${dateLabel(toDate)}`;
+    if (fromDate) return `Từ ${dateLabel(fromDate)}`;
+    return `Đến ${dateLabel(toDate)}`;
+  }, [fromDate, toDate]);
+
+  // Load Report
   useEffect(() => {
     if (!valid) return;
     const token = getToken();
-    if (!token) { setError("Phiên đăng nhập đã hết. Hãy đăng nhập lại."); setLoading(false); return; }
+    if (!token) {
+      setError("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+      setLoading(false);
+      return;
+    }
     let live = true;
-    setLoading(true); setError(""); setReport(null);
-    void fetchReport<Report>(token, "/report", params).then(data => { if (live) setReport(data); })
-      .catch(e => { if (live) setError(e instanceof Error && e.message.includes("403") ? "Bạn không có quyền xem báo cáo tổng hợp." : e instanceof Error && e.message.includes("401") ? "Phiên đăng nhập đã hết. Hãy đăng nhập lại." : "Không tải được báo cáo. Hãy thử Làm mới."); })
-      .finally(() => { if (live) setLoading(false); });
-    return () => { live = false; };
+    setLoading(true);
+    setError("");
+    void fetchReport<Report>(token, "/report", params)
+      .then((data) => {
+        if (live) setReport(data);
+      })
+      .catch((e) => {
+        if (live) {
+          setError(
+            e instanceof Error && e.message.includes("403")
+              ? "Bạn không có quyền truy cập báo cáo này."
+              : "Không tải được dữ liệu báo cáo. Hãy thử bấm Làm mới."
+          );
+        }
+      })
+      .finally(() => {
+        if (live) setLoading(false);
+      });
+    return () => {
+      live = false;
+    };
   }, [params, valid, asOf]);
+
+  // Load Table Surveys
   useEffect(() => {
     if (!valid) return;
     const token = getToken();
-    if (!token) { setTableLoading(false); return; }
+    if (!token) {
+      setTableLoading(false);
+      return;
+    }
     let live = true;
     const query = new URLSearchParams(params);
-    query.set("search", search); query.set("status", status); query.set("sort", sort);
-    query.set("page", String(page)); query.set("size", "20");
-    setTableLoading(true); setTableError(""); setSurveys(null);
-    void fetchReport<SurveyPage>(token, "/surveys", query).then(data => { if (live) setSurveys(data); })
-      .catch(() => { if (live) setTableError("Không tải được danh sách khảo sát. Hãy thử Làm mới."); })
-      .finally(() => { if (live) setTableLoading(false); });
-    return () => { live = false; };
+    query.set("search", search);
+    query.set("status", status);
+    query.set("sort", sort);
+    query.set("page", String(page));
+    query.set("size", "15");
+    setTableLoading(true);
+    setTableError("");
+    void fetchReport<SurveyPage>(token, "/surveys", query)
+      .then((data) => {
+        if (live) setSurveys(data);
+      })
+      .catch(() => {
+        if (live) setTableError("Không tải được danh sách khảo sát.");
+      })
+      .finally(() => {
+        if (live) setTableLoading(false);
+      });
+    return () => {
+      live = false;
+    };
   }, [params, valid, search, status, sort, page, asOf]);
+
+  // Load Top 5 Surveys
   useEffect(() => {
     if (!valid) return;
-    const token = getToken(); if (!token) return;
+    const token = getToken();
+    if (!token) return;
     let live = true;
-    const query = new URLSearchParams(params); query.set("sort", "submissions"); query.set("size", "5");
-    setTopFive(null); setTopError("");
-    void fetchReport<SurveyPage>(token, "/surveys", query).then(data => { if (live) setTopFive(data); })
-      .catch(() => { if (live) setTopError("Không tải được 5 khảo sát hàng đầu."); });
-    return () => { live = false; };
-  }, [params, valid, asOf]);
-  const exportXlsx = useCallback(async () => {
-    const token = getToken(); if (!token) return;
     const query = new URLSearchParams(params);
-    query.set("search", search); query.set("status", status); query.set("sort", sort);
+    query.set("sort", "submissions");
+    query.set("size", "5");
+    void fetchReport<SurveyPage>(token, "/surveys", query)
+      .then((data) => {
+        if (live) setTopFive(data);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [params, valid, asOf]);
+
+  // Export XLSX
+  const exportXlsx = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    const query = new URLSearchParams(params);
+    query.set("search", search);
+    query.set("status", status);
+    query.set("sort", sort);
     try {
-      const response = await fetch(API_DASHBOARD + "/surveys.xlsx?" + query, { headers: { Authorization: "Bearer " + token } });
+      const response = await fetch(`${API_DASHBOARD}/surveys.xlsx?${query}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!response.ok) throw new Error();
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a"); link.href = url; link.download = "so-sanh-khao-sat.xlsx"; link.click(); URL.revokeObjectURL(url);
-    } catch { setTableError("Không xuất được XLSX. Hãy thử lại."); }
-  }, [params, search, status, sort]);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `bao-cao-khao-sat-${scope === "all" ? "he-thong" : "ca-nhan"}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setTableError("Không xuất được file Excel. Vui lòng thử lại.");
+    }
+  }, [params, search, status, sort, scope]);
 
-  const statuses = Object.entries(report?.portfolio.statuses ?? {}).map(([key, value]) => ({ name: names[key] ?? key, value }));
-  const observed = report?.activity.trackingStatus !== "NO_TRACKING";
-  const comparison = report?.period.trendMode === "RECENT_30_DAYS"
-    ? "Xu hướng độc lập với phạm vi chính: 30 ngày gần nhất so với 30 ngày trước đó."
-    : "Xu hướng so với khoảng ngay trước có cùng độ dài.";
-  const topData = topFive?.rows.map(x => ({ name: x.title.length > 22 ? x.title.slice(0, 22) + "…" : x.title, responses: x.submissions })) ?? [];
+  // Copy Public Survey Link
+  const copySurveyLink = (surveyId: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const url = `${origin}/survey/${surveyId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(surveyId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
 
-  return <main className="analytics-hub -mx-4 -my-5 min-h-screen bg-[#eef2f7] px-4 py-5 text-slate-900 dark:bg-[#0b1220] dark:text-slate-100 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-    <div className="mx-auto max-w-[1500px] space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div><h1 className="text-[23px] font-semibold leading-7 tracking-tight">Báo cáo khảo sát</h1><p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Tổng quan hệ thống và hiệu quả khảo sát · giờ Việt Nam (UTC+7)</p></div>
-        <span className="inline-flex h-7 items-center rounded-md border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Phạm vi: {scope}</span>
-      </header>
+  // 1. TIMELINE AREA CHART (LƯỢT XEM VÀ PHẢN HỒI)
+  const timelineOption = useMemo<EChartsOption>(() => {
+    const timeline = report?.activity.timeline ?? [];
+    if (!timeline.length) return {};
+    return {
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "cross", crossStyle: { color: "#94a3b8" } },
+      },
+      legend: {
+        data: ["Lượt xem", "Phản hồi"],
+        top: 8,
+        left: 20,
+        icon: "roundRect",
+        textStyle: { fontSize: 12 },
+      },
+      toolbox: {
+        right: 15,
+        top: 8,
+        itemSize: 14,
+        feature: {
+          saveAsImage: { title: "Tải ảnh" },
+          dataZoom: { title: { zoom: "Phóng to", back: "Khôi phục" } },
+          restore: { title: "Đặt lại" },
+        },
+      },
+      grid: {
+        left: "3%",
+        right: "3%",
+        bottom: 50,
+        top: 55,
+        containLabel: true,
+      },
+      xAxis: {
+        type: "category",
+        boundaryGap: false,
+        data: timeline.map((p) => p.label),
+        axisLabel: { fontSize: 11, margin: 12 },
+      },
+      yAxis: {
+        type: "value",
+        minInterval: 1,
+        axisLabel: { fontSize: 11 },
+        splitLine: { lineStyle: { type: "dashed", color: "rgba(148, 163, 184, 0.2)" } },
+      },
+      dataZoom: [
+        { type: "inside", start: 0, end: 100 },
+        { type: "slider", height: 16, bottom: 8, start: 0, end: 100 },
+      ],
+      series: [
+        {
+          name: "Lượt xem",
+          type: "line",
+          smooth: true,
+          showSymbol: timeline.length <= 25,
+          symbolSize: 6,
+          itemStyle: { color: "#2563eb" },
+          lineStyle: { width: 3 },
+          areaStyle: {
+            color: {
+              type: "linear",
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: "rgba(37, 99, 235, 0.3)" },
+                { offset: 1, color: "rgba(37, 99, 235, 0.01)" },
+              ],
+            },
+          },
+          data: timeline.map((p) => p.views ?? 0),
+        },
+        {
+          name: "Phản hồi",
+          type: "line",
+          smooth: true,
+          showSymbol: timeline.length <= 25,
+          symbolSize: 6,
+          itemStyle: { color: "#10b981" },
+          lineStyle: { width: 3 },
+          areaStyle: {
+            color: {
+              type: "linear",
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: "rgba(16, 185, 129, 0.3)" },
+                { offset: 1, color: "rgba(16, 185, 129, 0.01)" },
+              ],
+            },
+          },
+          data: timeline.map((p) => p.submissions ?? 0),
+        },
+      ],
+    };
+  }, [report?.activity.timeline]);
 
-      <section aria-label="Bộ lọc thời gian" className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900">
-        <DateWheelPicker label="Từ ngày" max={vnToday()} value={fromDate} onChange={value => { setFromDate(value); setPage(1); }} />
-        <DateWheelPicker label="Đến ngày" max={vnToday()} value={toDate} onChange={value => { setToDate(value); setPage(1); }} />
-        <button type="button" onClick={() => { setFromDate(""); setToDate(""); setPage(1); }} className="h-9 rounded-md px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-600 dark:text-slate-200 dark:hover:bg-slate-800">Xóa lọc</button>
-        <button type="button" onClick={() => setAsOf(Date.now())} disabled={loading} className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-md bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50"><RefreshCw size={14} className={loading ? "animate-spin" : ""} />Làm mới</button>
-      </section>
+  // 2. PHÂN BỔ TRẠNG THÁI (DONUT CHART)
+  const statusesData = useMemo(() => {
+    if (!report?.portfolio.statuses) return [];
+    return Object.entries(report.portfolio.statuses).map(([key, value]) => ({
+      name: statusConfig[key]?.label || key,
+      value,
+      itemStyle: { color: statusConfig[key]?.color || "#94a3b8" },
+    }));
+  }, [report?.portfolio.statuses]);
 
-      {!valid && <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:bg-rose-950 dark:text-rose-200">Ngày bắt đầu phải trước hoặc bằng ngày kết thúc và không được ở tương lai.</p>}
-      {error && <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</p>}
-      {loading && <p role="status" className={muted}>Đang cập nhật báo cáo…</p>}
-      {!report && !loading && !error && <p className={muted}>Chưa có số liệu báo cáo.</p>}
+  const statusOption = useMemo<EChartsOption>(() => {
+    if (!statusesData.length) return {};
+    return {
+      tooltip: {
+        trigger: "item",
+        formatter: "{b}: <b>{c}</b> bài ({d}%)",
+      },
+      legend: {
+        orient: "horizontal",
+        bottom: 0,
+        icon: "circle",
+        textStyle: { fontSize: 11 },
+      },
+      toolbox: {
+        feature: { saveAsImage: { title: "Tải ảnh" } },
+        right: 12,
+        top: 4,
+      },
+      series: [
+        {
+          name: "Trạng thái",
+          type: "pie",
+          radius: ["40%", "68%"],
+          center: ["50%", "48%"],
+          avoidLabelOverlap: true,
+          itemStyle: {
+            borderRadius: 6,
+          },
+          label: {
+            show: true,
+            position: "inside",
+            formatter: (params: any) => (params.percent >= 6 ? `${params.percent}%` : ""),
+            fontSize: 11,
+            fontWeight: "bold",
+            color: "#ffffff",
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 12,
+              fontWeight: "bold",
+            },
+          },
+          data: statusesData,
+        },
+      ],
+    };
+  }, [statusesData]);
 
-      {valid && report && <div className="space-y-5" aria-busy={loading}>
-        <section aria-label="Các chỉ số chính" className="grid gap-3 lg:grid-cols-2">
-          <article className={panel}>
-            <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800"><h2 className="text-sm font-semibold">Quy mô hệ thống</h2><span className="text-[11px] text-slate-500 dark:text-slate-400">Hiện tại / toàn thời gian</span></div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-              <Metric label="Tài khoản" value={num(report.system.accounts)} note={num(report.system.activeAccounts) + " hoạt động"} />
-              <Metric label="Role" value={num(report.system.roles)} note={num(report.system.inactiveAccounts) + " tài khoản ngừng"} />
-              <Metric label="Khảo sát" value={num(report.portfolio.totalSurveys)} note={num(report.portfolio.withoutResponses) + " chưa có phản hồi"} />
-              <Metric label="Khách hôm nay" value={count(report.website.visitorsToday)} note="Trình duyệt duy nhất" />
+  // 3. TOP KHẢO SÁT NHẬN NHIỀU PHẢN HỒI NHẤT (HORIZONTAL BAR CHART)
+  const topSurveysData = useMemo(() => {
+    return (
+      topFive?.rows.map((x) => ({
+        id: x.surveyId,
+        title: x.title,
+        submissions: x.submissions,
+        views: x.views ?? 0,
+      })) ?? []
+    );
+  }, [topFive]);
+
+  const topSurveysOption = useMemo<EChartsOption>(() => {
+    if (!topSurveysData.length) return {};
+    const reversed = [...topSurveysData].reverse();
+    return {
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        formatter: (params: any) => {
+          const item = params[0];
+          return `<b>${item.name}</b><br/>Phản hồi: <b>${num(item.value)}</b> lượt`;
+        },
+      },
+      toolbox: {
+        feature: { saveAsImage: { title: "Tải ảnh" } },
+        right: 12,
+        top: 4,
+      },
+      grid: {
+        left: "3%",
+        right: "12%",
+        bottom: "5%",
+        top: 36,
+        containLabel: true,
+      },
+      xAxis: {
+        type: "value",
+        minInterval: 1,
+        splitLine: { lineStyle: { type: "dashed", color: "rgba(148, 163, 184, 0.2)" } },
+      },
+      yAxis: {
+        type: "category",
+        data: reversed.map((s) => s.title),
+        axisLabel: {
+          width: 140,
+          overflow: "truncate",
+          fontSize: 11,
+          fontWeight: 500,
+        },
+      },
+      series: [
+        {
+          name: "Phản hồi",
+          type: "bar",
+          data: reversed.map((s) => s.submissions),
+          itemStyle: {
+            borderRadius: [0, 6, 6, 0],
+            color: {
+              type: "linear",
+              x: 0,
+              y: 0,
+              x2: 1,
+              y2: 0,
+              colorStops: [
+                { offset: 0, color: "#6366f1" },
+                { offset: 1, color: "#8b5cf6" },
+              ],
+            },
+          },
+          label: {
+            show: true,
+            position: "right",
+            fontSize: 11,
+            fontWeight: "bold",
+          },
+        },
+      ],
+    };
+  }, [topSurveysData]);
+
+  // 4. TIẾN TRÌNH HÀNH TRÌNH CHUYỂN ĐỔI TOÀN HỆ THỐNG
+  const conversionOption = useMemo<EChartsOption>(() => {
+    if (!report?.funnel) return {};
+    const f = report.funnel;
+    const maxVal = Math.max(f.viewed || 1, f.started, f.submitted, 1);
+    const stages = [
+      { name: "3. Nộp bài thành công", value: f.submitted, color: "#10b981" },
+      { name: "2. Bắt đầu điền câu hỏi", value: f.started, color: "#06b6d4" },
+      { name: "1. Đã xem khảo sát", value: f.viewed, color: "#3b82f6" },
+    ];
+
+    return {
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        formatter: (params: any) => {
+          const item = params[0];
+          return `<b>${item.name}</b><br/>Số lượng: <b>${num(item.value)}</b> lượt`;
+        },
+      },
+      toolbox: {
+        feature: { saveAsImage: { title: "Tải ảnh" } },
+        right: 10,
+        top: 0,
+      },
+      grid: {
+        left: "3%",
+        right: "12%",
+        top: "10%",
+        bottom: "8%",
+        containLabel: true,
+      },
+      xAxis: {
+        type: "value",
+        max: maxVal,
+        splitLine: { show: false },
+        axisLabel: { show: false },
+      },
+      yAxis: {
+        type: "category",
+        data: stages.map((s) => s.name),
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { fontSize: 11, fontWeight: "bold" },
+      },
+      series: [
+        {
+          name: "Số lượng",
+          type: "bar",
+          data: stages.map((s) => ({
+            value: s.value,
+            itemStyle: { color: s.color, borderRadius: [0, 8, 8, 0] },
+          })),
+          barWidth: 26,
+          showBackground: true,
+          backgroundStyle: {
+            color: "rgba(148, 163, 184, 0.12)",
+            borderRadius: [0, 8, 8, 0],
+          },
+          label: {
+            show: true,
+            position: "right",
+            formatter: (params: any) => {
+              const val = params.value;
+              const pct = maxVal > 0 ? Math.round((val / maxVal) * 100) : 0;
+              return `${num(val)} (${pct}%)`;
+            },
+            fontWeight: "bold",
+            fontSize: 11,
+          },
+        },
+      ],
+    };
+  }, [report?.funnel]);
+
+  // 5. CƠ CẤU THIẾT BỊ, NGUỒN TRUY CẬP & UTM
+  const devicesOption = useMemo<EChartsOption>(() => {
+    const list = report?.acquisition.devices ?? [];
+    if (!list.length) return {};
+    return {
+      tooltip: { trigger: "item", formatter: "{b}: <b>{c}</b> ({d}%)" },
+      legend: { orient: "horizontal", bottom: 0, icon: "circle", textStyle: { fontSize: 10 } },
+      toolbox: { feature: { saveAsImage: { title: "Tải ảnh" } }, right: 12, top: 4 },
+      series: [
+        {
+          name: "Thiết bị",
+          type: "pie",
+          radius: ["40%", "68%"],
+          center: ["50%", "48%"],
+          itemStyle: { borderRadius: 6 },
+          label: {
+            show: true,
+            position: "inside",
+            formatter: (params: any) => (params.percent >= 6 ? `${params.percent}%` : ""),
+            fontSize: 11,
+            fontWeight: "bold",
+            color: "#ffffff",
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 12,
+              fontWeight: "bold",
+            },
+          },
+          data: list.map((item) => ({
+            name: item.label === "UNKNOWN" ? "Khác / Không rõ" : item.label,
+            value: item.count,
+          })),
+        },
+      ],
+    };
+  }, [report?.acquisition.devices]);
+
+  const sourcesOption = useMemo<EChartsOption>(() => {
+    const list = report?.acquisition.sources ?? [];
+    if (!list.length) return {};
+    return {
+      tooltip: { trigger: "item", formatter: "{b}: <b>{c}</b> ({d}%)" },
+      legend: { orient: "horizontal", bottom: 0, icon: "circle", textStyle: { fontSize: 10 } },
+      toolbox: { feature: { saveAsImage: { title: "Tải ảnh" } }, right: 12, top: 4 },
+      series: [
+        {
+          name: "Nguồn truy cập",
+          type: "pie",
+          radius: ["40%", "68%"],
+          center: ["50%", "48%"],
+          itemStyle: { borderRadius: 6 },
+          label: {
+            show: true,
+            position: "inside",
+            formatter: (params: any) => (params.percent >= 6 ? `${params.percent}%` : ""),
+            fontSize: 11,
+            fontWeight: "bold",
+            color: "#ffffff",
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 12,
+              fontWeight: "bold",
+            },
+          },
+          data: list.map((item) => ({
+            name: item.label === "UNKNOWN" ? "Trực tiếp / Không rõ" : item.label,
+            value: item.count,
+          })),
+        },
+      ],
+    };
+  }, [report?.acquisition.sources]);
+
+  const mediumsOption = useMemo<EChartsOption>(() => {
+    const list = report?.acquisition.mediums ?? [];
+    if (!list.length) return {};
+    return {
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+      toolbox: { feature: { saveAsImage: { title: "Tải ảnh" } }, right: 12, top: 4 },
+      grid: { left: "3%", right: "12%", bottom: "5%", top: 36, containLabel: true },
+      xAxis: { type: "value", minInterval: 1 },
+      yAxis: {
+        type: "category",
+        data: list.map((item) => (item.label === "UNKNOWN" ? "Trực tiếp" : item.label)),
+        axisLabel: { width: 85, overflow: "truncate", fontSize: 10 },
+      },
+      series: [
+        {
+          name: "Lượt truy cập",
+          type: "bar",
+          data: list.map((item) => item.count),
+          itemStyle: { borderRadius: [0, 6, 6, 0], color: "#6366f1" },
+          label: { show: true, position: "right", fontSize: 10 },
+        },
+      ],
+    };
+  }, [report?.acquisition.mediums]);
+
+  // 6. PHÂN BỐ THEO THỨ (RADAR MẠNG NHỆN) & KHUNG GIỜ VÀNG (24H)
+  const weekdayOption = useMemo<EChartsOption>(() => {
+    const weekdays = report?.engagement.byWeekday ?? [];
+    const daysMap = new Map(weekdays.map((item) => [item.day, item.submissions]));
+    const dayNames = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"];
+    const values = [
+      daysMap.get(1) ?? 0,
+      daysMap.get(2) ?? 0,
+      daysMap.get(3) ?? 0,
+      daysMap.get(4) ?? 0,
+      daysMap.get(5) ?? 0,
+      daysMap.get(6) ?? 0,
+      daysMap.get(7) ?? 0,
+    ];
+    const maxVal = Math.max(...values, 5);
+
+    const indicators = dayNames.map((name) => ({
+      name,
+      max: Math.ceil(maxVal * 1.15),
+    }));
+
+    return {
+      tooltip: {
+        trigger: "item",
+        formatter: () => {
+          const lines = dayNames.map((d, i) => `${d}: <b>${values[i]}</b> phản hồi`);
+          return `<b>Phân bố theo thứ trong tuần</b><br/>${lines.join("<br/>")}`;
+        },
+      },
+      toolbox: { feature: { saveAsImage: { title: "Tải ảnh" } }, right: 12, top: 4 },
+      radar: {
+        indicator: indicators,
+        shape: "polygon",
+        radius: "60%",
+        center: ["50%", "54%"],
+        splitNumber: 4,
+        axisName: { color: "#64748b", fontWeight: 600, fontSize: 11 },
+        splitLine: { lineStyle: { color: "rgba(148, 163, 184, 0.3)" } },
+        splitArea: { show: true, areaStyle: { color: ["rgba(148, 163, 184, 0.03)", "rgba(148, 163, 184, 0.08)"] } },
+        axisLine: { lineStyle: { color: "rgba(148, 163, 184, 0.3)" } },
+      },
+      series: [
+        {
+          name: "Phản hồi theo thứ",
+          type: "radar",
+          data: [
+            {
+              value: values,
+              name: "Số phản hồi",
+              symbol: "circle",
+              symbolSize: 6,
+              lineStyle: { width: 2.5, color: "#7c3aed" },
+              itemStyle: { color: "#7c3aed" },
+              areaStyle: {
+                color: {
+                  type: "radial",
+                  x: 0.5,
+                  y: 0.5,
+                  r: 0.5,
+                  colorStops: [
+                    { offset: 0, color: "rgba(124, 58, 237, 0.45)" },
+                    { offset: 1, color: "rgba(124, 58, 237, 0.1)" },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }, [report?.engagement.byWeekday]);
+
+  const hoursOption = useMemo<EChartsOption>(() => {
+    const hours = report?.engagement.byHour ?? [];
+    const hourMap = new Map(hours.map((item) => [item.hour, item.submissions]));
+    const labels = Array.from({ length: 24 }, (_, i) => `${i}h`);
+    const values = Array.from({ length: 24 }, (_, i) => hourMap.get(i) ?? 0);
+    const maxVal = Math.max(...values, 1);
+
+    return {
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        formatter: "{b}: <b>{c}</b> phản hồi",
+      },
+      toolbox: { feature: { saveAsImage: { title: "Tải ảnh" } }, right: 12, top: 4 },
+      grid: { left: "3%", right: "3%", bottom: "8%", top: 36, containLabel: true },
+      xAxis: {
+        type: "category",
+        data: labels,
+        axisLabel: { interval: 1, fontSize: 10 },
+      },
+      yAxis: {
+        type: "value",
+        minInterval: 1,
+        splitLine: { lineStyle: { type: "dashed", color: "rgba(148, 163, 184, 0.2)" } },
+      },
+      series: [
+        {
+          name: "Phản hồi",
+          type: "bar",
+          data: values.map((val) => ({
+            value: val,
+            itemStyle: {
+              color: val === maxVal && val > 0 ? "#059669" : "#34d399",
+              borderRadius: [4, 4, 0, 0],
+            },
+          })),
+          markPoint: {
+            data: [{ type: "max", name: "Giờ cao điểm" }],
+          },
+        },
+      ],
+    };
+  }, [report?.engagement.byHour]);
+
+  const totalSurveysCount = report?.portfolio.totalSurveys ?? 0;
+  const openSurveysCount = report?.portfolio.statuses?.OPEN ?? 0;
+  const draftSurveysCount = report?.portfolio.statuses?.DRAFT ?? 0;
+  const totalSubmissions = report?.activity.submissions ?? 0;
+  const totalViews = report?.activity.views ?? 0;
+  const completionRate = report?.completeness.completionRate;
+
+  return (
+    <div className="min-h-screen bg-slate-50/70 pb-16 text-slate-900 transition-colors duration-200 dark:bg-[#0b1220] dark:text-slate-100">
+      <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+
+        {/* ================= HEADER & GREETING ================= */}
+        <header className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-shadow duration-200 dark:border-slate-800/80 dark:bg-slate-900 sm:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            {/* Left: Greeting & Role */}
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                  Xin chào, {username || "bạn"} 👋
+                </h1>
+                {isAdminUser ? (
+                  <span className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 border border-indigo-200/60 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800/40">
+                    <Shield size={13} /> Quản trị viên
+                  </span>
+                ) : (
+                  <span className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/40">
+                    <Sparkles size={13} /> Người tạo khảo sát
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {isAdminUser && scope === "all"
+                  ? "Theo dõi tổng thể dữ liệu toàn hệ thống, hành trình chuyển đổi và hiệu quả khảo sát"
+                  : "Theo dõi dữ liệu và kết quả các bài khảo sát bạn được cấp quyền quản lý"}
+              </p>
             </div>
-            <div className="mt-3 border-t border-slate-100 pt-2 dark:border-slate-800"><p className="mb-1 text-[11px] text-slate-500 dark:text-slate-400">Tài khoản theo role · một người có thể thuộc nhiều role</p><div className="grid gap-x-4 gap-y-1 sm:grid-cols-3">{report.system.roleDistribution.map(x => <div key={x.name} className="flex min-w-0 items-center gap-2 text-[11px]"><span className="truncate">{x.name}</span><div className="h-1 min-w-0 flex-1 bg-slate-100 dark:bg-slate-800"><div className="h-full bg-blue-600" style={{ width: String(report.system.accounts ? x.users / report.system.accounts * 100 : 0) + "%" }} /></div><strong>{num(x.users)}</strong></div>)}</div></div>
-          </article>
-          <article className={panel}>
-            <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800"><h2 className="text-sm font-semibold">Hoạt động khảo sát</h2><span className="text-[11px] text-slate-500 dark:text-slate-400">{scope}</span></div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-              <Metric label="Lượt xem" value={count(report.activity.views)} note={report.activity.trackingStatus === "PARTIAL" ? "Tracking một phần" : "SURVEY_VIEWED"} />
-              <Metric label="Phản hồi" value={num(report.activity.submissions)} note="Đã lưu" />
-              <Metric label="Submit / khảo sát" value={fmt(report.averageSubmissionsPerSurvey)} note="Trung bình" />
-              <Metric label={"Submit / " + (report.period.bucket === "MONTH" ? "tháng" : report.period.bucket === "YEAR" ? "năm" : "ngày")} value={fmt(report.averageSubmissionsPerBucket)} note="Trung bình theo mốc" />
+
+            {/* Right: Controls arranged in clean, responsive groups */}
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 shrink-0">
+              {/* Scope Switcher for Admin Only */}
+              {isAdminUser && (
+                <div className="inline-flex items-center rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-slate-800 dark:bg-slate-950/80 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setScope("all")}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
+                      scope === "all"
+                        ? "bg-white text-indigo-700 shadow-xs dark:bg-slate-800 dark:text-indigo-300"
+                        : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                    }`}
+                  >
+                    <Globe size={13} /> Toàn hệ thống
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScope("my")}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
+                      scope === "my"
+                        ? "bg-white text-indigo-700 shadow-xs dark:bg-slate-800 dark:text-indigo-300"
+                        : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                    }`}
+                  >
+                    <FolderOpen size={13} /> Khảo sát của tôi
+                  </button>
+                </div>
+              )}
+
+              {/* Action Buttons Group */}
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Fullscreen Presentation Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsPresentationOpen(true)}
+                  className="inline-flex h-9.5 items-center gap-1.5 rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-3.5 text-xs font-semibold text-indigo-700 shadow-2xs transition-all hover:bg-indigo-100 hover:border-indigo-300 active:scale-[0.98] dark:border-indigo-900/60 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/70 whitespace-nowrap"
+                  title="Mở màn hình trình chiếu toàn màn hình các biểu đồ (TV / Projector Mode)"
+                >
+                  <Tv size={15} className="text-indigo-600 dark:text-indigo-400" />
+                  <span>Trình chiếu</span>
+                </button>
+
+                {/* Refresh Button */}
+                <button
+                  type="button"
+                  onClick={() => setAsOf(Date.now())}
+                  disabled={loading}
+                  className="inline-flex h-9.5 items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 whitespace-nowrap"
+                  title="Làm mới dữ liệu"
+                >
+                  <RefreshCw size={14} className={loading ? "animate-spin text-blue-600" : ""} />
+                  <span>Làm mới</span>
+                </button>
+
+                {/* Create Survey CTA */}
+                <Link
+                  href="/admin/survey"
+                  className="inline-flex h-9.5 items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white shadow-xs transition-all hover:bg-blue-700 active:scale-[0.98] whitespace-nowrap"
+                >
+                  <Plus size={15} /> Tạo khảo sát
+                </Link>
+              </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 text-[11px] dark:border-slate-800"><span>Tạo mới: <strong>{num(report.portfolio.createdInPeriod)}</strong></span><span>Xuất bản: <strong>{num(report.portfolio.publishedInPeriod)}</strong></span><span>Tài khoản đã tạo khảo sát: <strong>{num(report.system.surveyCreators)}</strong></span></div>
-          </article>
+          </div>
+        </header>
+
+        {/* ================= TIME FILTER BAR ================= */}
+        <section aria-label="Bộ lọc thời gian" className={`${panel} flex flex-wrap items-center justify-between gap-3`}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <Calendar size={14} /> Thời gian:
+            </span>
+            {(
+              [
+                { id: "all", label: "Tất cả" },
+                { id: "today", label: "Hôm nay" },
+                { id: "7d", label: "7 ngày qua" },
+                { id: "30d", label: "30 ngày qua" },
+                { id: "custom", label: "Tùy chọn" },
+              ] as const
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handlePresetChange(item.id)}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+                  preset === item.id
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+              {scopeLabel}
+            </span>
+          </div>
+
+          {showDatePicker && (
+            <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-end gap-2">
+              <DateWheelPicker label="Từ ngày" max={vnToday()} value={fromDate} onChange={(v) => { setFromDate(v); setPage(1); }} />
+              <DateWheelPicker label="Đến ngày" max={vnToday()} value={toDate} onChange={(v) => { setToDate(v); setPage(1); }} />
+            </div>
+          )}
         </section>
 
-        <section aria-label="Biểu đồ hoạt động" className="grid gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,.8fr)]">
-          <article className={panel}>
-            <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-sm font-semibold">Lượt xem và phản hồi</h2><p className={muted}>Hai đường theo {report.period.bucket === "MONTH" ? "tháng" : report.period.bucket === "YEAR" ? "năm" : "ngày"} · {scope}</p></div><div className="flex flex-wrap gap-x-3 text-[11px]"><span><i aria-hidden className="mr-1 inline-block size-2 rounded-full bg-blue-600" />View {count(report.activity.views)}</span><span><i aria-hidden className="mr-1 inline-block size-2 rounded-full bg-orange-500" />Submit {num(report.activity.submissions)}</span></div></div>
-            <div className="mt-2 h-[222px]" role="img" aria-label={"Lượt xem " + count(report.activity.views) + ", phản hồi " + num(report.activity.submissions)}><ResponsiveContainer width="100%" height="100%" minWidth={240}><LineChart data={report.activity.timeline} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="label" minTickGap={28} tick={{ fontSize: 10 }} /><YAxis allowDecimals={false} tick={{ fontSize: 10 }} /><Tooltip /><Legend verticalAlign="top" height={22} /><Line name="Lượt xem" dataKey="views" stroke="#2563eb" strokeWidth={2} dot={false} connectNulls={false} /><Line name="Phản hồi" dataKey="submissions" stroke="#f97316" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div>
-            <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-[11px] dark:border-slate-800"><span>View: <TrendValue value={report.viewsTrend} /></span><span>Submit: <TrendValue value={report.submissionsTrend} /></span></div>
-            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{comparison}</p>
-            <DataTable headers={["Mốc", "View", "Submit"]} rows={report.activity.timeline.map(x => [x.label, count(x.views), num(x.submissions)])} />
-          </article>
-          <article className={panel}>
-            <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Trạng thái khảo sát</h2><span className="text-xs font-semibold tabular-nums">{num(report.portfolio.totalSurveys)} tổng</span></div>
-            <div className="mx-auto h-[154px] max-w-[260px]" role="img" aria-label={statuses.map(x => x.name + ": " + x.value).join(", ")}><ResponsiveContainer width="100%" height="100%" minWidth={220}><PieChart><Pie data={statuses} dataKey="value" nameKey="name" innerRadius={43} outerRadius={68} paddingAngle={2}>{statuses.map((x, i) => <Cell key={x.name} fill={colors[i % colors.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div>
-            <ul className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">{statuses.map((x, i) => <li key={x.name} className="flex items-center gap-1.5"><span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} /><span>{x.name}</span><strong className="ml-auto tabular-nums">{num(x.value)}</strong></li>)}</ul>
-            <p className="mt-2 border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">Bốn trạng thái là trạng thái hiện tại của khảo sát.</p>
-          </article>
+        {error && (
+          <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-800 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-200">
+            {error}
+          </div>
+        )}
+
+        {/* ================= 4 MAIN KPI METRICS ================= */}
+        <section aria-label="Chỉ số chính" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            icon={FolderOpen}
+            iconColor="text-blue-600 dark:text-blue-400"
+            iconBg="bg-blue-50 dark:bg-blue-950/60"
+            label={scope === "all" ? "Tổng khảo sát hệ thống" : "Khảo sát của bạn"}
+            value={num(totalSurveysCount)}
+            note={
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  {num(openSurveysCount)} đang mở
+                </span>
+                <span>•</span>
+                <span>{num(draftSurveysCount)} bản nháp</span>
+              </div>
+            }
+          />
+
+          <MetricCard
+            icon={MessageSquare}
+            iconColor="text-emerald-600 dark:text-emerald-400"
+            iconBg="bg-emerald-50 dark:bg-emerald-950/60"
+            label="Phản hồi đã nhận"
+            value={num(totalSubmissions)}
+            note={
+              <div className="flex items-center gap-1.5">
+                {report?.submissionsTrend ? (
+                  <span className={`inline-flex items-center gap-0.5 font-bold ${report.submissionsTrend.delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                    {report.submissionsTrend.delta >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                    {fmt(Math.abs(report.submissionsTrend.percent ?? 0), "%")}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">0%</span>
+                )}
+                <span>so với kỳ trước</span>
+              </div>
+            }
+          />
+
+          <MetricCard
+            icon={Eye}
+            iconColor="text-indigo-600 dark:text-indigo-400"
+            iconBg="bg-indigo-50 dark:bg-indigo-950/60"
+            label="Lượt tiếp cận (Xem)"
+            value={count(totalViews)}
+            note={
+              <span>
+                Tỷ lệ gửi: <strong className="font-bold text-slate-800 dark:text-slate-200">{fmt(report?.funnel.viewToSubmitRate, "%")}</strong> trên phiên xem
+              </span>
+            }
+          />
+
+          <MetricCard
+            icon={TrendingUp}
+            iconColor="text-amber-600 dark:text-amber-400"
+            iconBg="bg-amber-50 dark:bg-amber-950/60"
+            label="Tỷ lệ hoàn thành câu hỏi"
+            value={fmt(completionRate, "%")}
+            note={
+              <span>
+                Thời gian làm bài: <strong className="font-bold text-slate-800 dark:text-slate-200">{duration(report?.engagement.medianActiveDurationMs)}</strong>
+              </span>
+            }
+          />
         </section>
 
-        <section aria-label="Hành trình khách">
-          <Heading title="Hành trình khách" note="Phễu và khách website trong phạm vi đã chọn" />
-          <div className="grid gap-3 lg:grid-cols-2">
-            <article className={panel}>
-              <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Từ xem đến gửi</h3>{report.funnel.provisional && <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">Kỳ đang diễn ra</span>}</div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">{[["Đã xem", report.funnel.viewed], ["Đã bắt đầu", report.funnel.started], ["Gửi thành công", report.funnel.submitted]].map(([label, value], i) => <div key={label} className="min-w-0 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-950"><p className="text-[11px] text-slate-600 dark:text-slate-300">{label}</p><strong className="text-xl tabular-nums">{observed ? num(Number(value)) : "—"}</strong><div className="mt-1 h-1 bg-slate-200 dark:bg-slate-800"><div className={i === 2 ? "h-full bg-orange-500" : "h-full bg-blue-600"} style={{ width: String(report.funnel.viewed ? Number(value) / report.funnel.viewed * 100 : 0) + "%" }} /></div></div>)}</div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]"><span>Xem → bắt đầu<br /><strong>{fmt(report.funnel.viewToStartRate, "%")}</strong></span><span>Bắt đầu → gửi<br /><strong>{fmt(report.funnel.startToSubmitRate, "%")}</strong></span><span>Gửi / phiên xem<br /><strong>{fmt(report.funnel.viewToSubmitRate, "%")}</strong></span></div>
-              <p className="mt-3 border-t border-slate-100 pt-2 text-[11px] dark:border-slate-800">Còn dở <strong>{num(report.funnel.inProgress)}</strong> · Bỏ dở <strong>{num(report.funnel.abandoned)}</strong> · Chỉ xem <strong>{num(report.funnel.onlyViewed)}</strong></p>
-              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Cùng nhóm phiên bắt đầu xem trong kỳ; bỏ dở sau thời hạn.</p>
+        {/* ================= ADMIN SYSTEM SCALE OVERVIEW (ADMIN ONLY) ================= */}
+        {isAdminUser && scope === "all" && report?.system && (
+          <section aria-label="Quy mô hệ thống toàn diện" className={`${panel} border-indigo-100 dark:border-slate-800`}>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                  <Shield size={16} />
+                </span>
+                <div>
+                  <h2 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">Quy mô quản trị hệ thống</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Dữ liệu tài khoản người dùng và quy mô vận hành toàn hệ thống</p>
+                </div>
+              </div>
+              <span className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                Toàn hệ thống
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tài khoản người dùng</p>
+                <p className="mt-1.5 text-xl font-extrabold tabular-nums tracking-tight text-slate-900 dark:text-white">{num(report.system.accounts)}</p>
+                <p className="mt-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">{num(report.system.activeAccounts)} đang hoạt động</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Vai trò phân quyền</p>
+                <p className="mt-1.5 text-xl font-extrabold tabular-nums tracking-tight text-slate-900 dark:text-white">{num(report.system.roles)}</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{num(report.system.surveyCreators)} người đã tạo bài</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Khách website hôm nay</p>
+                <p className="mt-1.5 text-xl font-extrabold tabular-nums tracking-tight text-slate-900 dark:text-white">{count(report.website?.visitorsToday)}</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Trình duyệt duy nhất</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Khảo sát chưa có phản hồi</p>
+                <p className="mt-1.5 text-xl font-extrabold tabular-nums tracking-tight text-amber-600 dark:text-amber-400">{num(report.portfolio.withoutResponses)}</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Cần chia sẻ tiếp</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ================= SECTION 1: TIMELINE & STATUS DONUT ================= */}
+        {totalSurveysCount > 0 ? (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {/* Timeline Line/Area Chart */}
+            <article className={`${panel} lg:col-span-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+                    <Activity size={18} />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                      Xu hướng tương tác theo thời gian
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Lượt xem và lượt gửi phản hồi ({scopeLabel})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
+                  <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 font-semibold">
+                    Lượt xem ({count(report?.activity.views)})
+                  </span>
+                  <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-semibold">
+                    Phản hồi ({count(report?.activity?.submissions)})
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <EChartsContainer option={timelineOption} height={280} />
+              </div>
             </article>
+
+            {/* Status Distribution Donut Chart */}
             <article className={panel}>
-              <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="text-sm font-semibold">Khách website</h3><span className={muted}>Mới / quay lại theo mốc · trình duyệt duy nhất</span></div>
-              {report.website.trackingStartedAt ? <><div className="mt-1 h-[188px]" role="img" aria-label="Khách website mới và quay lại"><ResponsiveContainer width="100%" height="100%" minWidth={240}><BarChart data={report.website.timeline} margin={{ top: 8, right: 4, left: -22, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="label" minTickGap={28} tick={{ fontSize: 10 }} /><YAxis allowDecimals={false} tick={{ fontSize: 10 }} /><Tooltip /><Legend verticalAlign="top" height={22} /><Bar name="Mới" dataKey="newVisitors" stackId="v" fill="#2563eb" /><Bar name="Quay lại" dataKey="returningVisitors" stackId="v" fill="#f97316" /></BarChart></ResponsiveContainer></div><DataTable headers={["Mốc", "Khách", "Mới", "Quay lại"]} rows={report.website.timeline.map(x => [x.label, count(x.visitors), count(x.newVisitors), count(x.returningVisitors)])} /></> : <p className={muted + " py-10"}>Chưa ghi nhận lượt khách website.</p>}
-              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">“Mới” là lần đầu hệ thống ghi nhận trình duyệt; các mốc trước tracking là “Chưa ghi nhận”.</p>
+              <div className="flex items-center gap-3 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                  <PieChart size={18} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                    Phân bổ trạng thái khảo sát
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    Tổng số {num(totalSurveysCount)} bài khảo sát
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2">
+                <EChartsContainer option={statusOption} height={240} />
+              </div>
+
+              <ul className="mt-2 grid grid-cols-2 gap-2 text-xs border-t border-slate-100 pt-3 dark:border-slate-800">
+                {statusesData.map((item) => (
+                  <li key={item.name} className="flex items-center justify-between rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/50">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: (item.itemStyle as any)?.color }} />
+                      <span className="text-slate-600 dark:text-slate-300 font-medium">{item.name}</span>
+                    </span>
+                    <strong className="font-bold tabular-nums text-slate-900 dark:text-white">{num(item.value)}</strong>
+                  </li>
+                ))}
+              </ul>
             </article>
           </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-3"><Distribution title="Nguồn truy cập" data={report.acquisition.sources} /><Distribution title="UTM medium" data={report.acquisition.mediums} /><Distribution title="Thiết bị" data={report.acquisition.devices} /></div>
+        ) : (
+          /* Empty State for New Users */
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-xs dark:border-slate-800 dark:bg-slate-900">
+            <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+              <Sparkles size={28} />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
+              Chào mừng bạn đến với hệ thống khảo sát!
+            </h3>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500 dark:text-slate-400">
+              Hiện tại bạn chưa có khảo sát nào hoặc chưa được chia sẻ quyền. Hãy bắt đầu bằng cách tạo khảo sát đầu tiên của bạn để thu thập câu trả lời và xem số liệu phân tích.
+            </p>
+            <div className="mt-5">
+              <Link
+                href="/admin/survey"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition"
+              >
+                <Plus size={16} /> Tạo bài khảo sát ngay
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* ================= SECTION 2: TOP SURVEYS & CONVERSION FUNNEL ================= */}
+        {totalSurveysCount > 0 && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* Top 5 Surveys Horizontal Bar Chart */}
+            <article className={panel}>
+              <div className="flex items-center gap-3 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400">
+                  <BarChart3 size={18} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                    Top Khảo sát nhận nhiều phản hồi nhất
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    Xếp hạng các bài khảo sát thu hút người tham gia cao nhất
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2">
+                {topSurveysData.length ? (
+                  <EChartsContainer option={topSurveysOption} height={250} />
+                ) : (
+                  <p className={`${muted} py-12 text-center`}>Chưa có dữ liệu xếp hạng khảo sát.</p>
+                )}
+              </div>
+            </article>
+
+            {/* System Conversion Funnel Step Progress */}
+            <article className={panel}>
+              <div className="flex items-center gap-3 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600 dark:bg-cyan-950/60 dark:text-cyan-400">
+                  <Layers size={18} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                    Hành trình chuyển đổi toàn hệ thống
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    Tỷ lệ người dùng chuyển tiếp từ lúc mở bài đến nộp bài thành công
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2">
+                <EChartsContainer option={conversionOption} height={220} />
+              </div>
+
+              {/* Drop-off Stats */}
+              {report?.funnel && (
+                <div className="mt-3 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 text-center dark:border-slate-800">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Xem → Bắt đầu</span>
+                    <p className="mt-1 text-base font-bold text-slate-800 dark:text-slate-200">{fmt(report.funnel.viewToStartRate, "%")}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-400">Rời đi: {num(report.funnel.onlyViewed)}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Bắt đầu → Gửi</span>
+                    <p className="mt-1 text-base font-bold text-cyan-600 dark:text-cyan-400">{fmt(report.funnel.startToSubmitRate, "%")}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-400">Bỏ dở: {num(report.funnel.abandoned)}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Chuyển đổi chung</span>
+                    <p className="mt-1 text-base font-bold text-emerald-600 dark:text-emerald-400">{fmt(report.funnel.viewToSubmitRate, "%")}</p>
+                    <p className="mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">Thành công: {num(report.funnel.submitted)}</p>
+                  </div>
+                </div>
+              )}
+            </article>
+          </div>
+        )}
+
+        {/* ================= SECTION 3: DEVICES, SOURCES, MEDIUMS (3 CARDS SIDE BY SIDE) ================= */}
+        {totalSurveysCount > 0 && report && (
+          <section className="grid gap-6 lg:grid-cols-3" aria-label="Thiết bị, Nguồn truy cập và Kênh UTM">
+            {/* Card 1: Devices */}
+            <article className={panel}>
+              <div className="flex items-center gap-3 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+                  <Smartphone size={16} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">Cơ cấu Thiết bị</h3>
+                  <p className={muted}>Phân bố Mobile, Desktop và Tablet</p>
+                </div>
+              </div>
+              <div className="mt-2">
+                {report.acquisition.devices.length ? (
+                  <EChartsContainer option={devicesOption} height={240} />
+                ) : (
+                  <p className={`${muted} py-12 text-center`}>Chưa có dữ liệu thiết bị.</p>
+                )}
+              </div>
+            </article>
+
+            {/* Card 2: Sources */}
+            <article className={panel}>
+              <div className="flex items-center gap-3 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                  <Globe size={16} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">Nguồn giới thiệu</h3>
+                  <p className={muted}>Trực tiếp, Mạng xã hội, Search...</p>
+                </div>
+              </div>
+              <div className="mt-2">
+                {report.acquisition.sources.length ? (
+                  <EChartsContainer option={sourcesOption} height={240} />
+                ) : (
+                  <p className={`${muted} py-12 text-center`}>Chưa có dữ liệu nguồn truy cập.</p>
+                )}
+              </div>
+            </article>
+
+            {/* Card 3: UTM Mediums */}
+            <article className={panel}>
+              <div className="flex items-center gap-3 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                  <Share2 size={16} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">Kênh tiếp thị UTM</h3>
+                  <p className={muted}>UTM Medium (Email, CPC, QR...)</p>
+                </div>
+              </div>
+              <div className="mt-2">
+                {report.acquisition.mediums.length ? (
+                  <EChartsContainer option={mediumsOption} height={240} />
+                ) : (
+                  <p className={`${muted} py-12 text-center`}>Chưa có dữ liệu UTM Medium.</p>
+                )}
+              </div>
+            </article>
+          </section>
+        )}
+
+        {/* ================= SECTION 4: WEEKDAY RADAR & 24H PEAK HOURS ================= */}
+        {totalSurveysCount > 0 && report && (
+          <section className="grid gap-6 lg:grid-cols-2" aria-label="Khung giờ và Thứ trong tuần">
+            {/* Weekday Radar Chart */}
+            <article className={panel}>
+              <div className="flex items-center gap-3 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400">
+                  <Compass size={16} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                    Phân bố phản hồi theo Ngày trong tuần
+                  </h3>
+                  <p className={muted}>Biểu đồ mạng nhện thể hiện tần suất gửi bài từ Thứ 2 đến Chủ Nhật</p>
+                </div>
+              </div>
+              <div className="mt-2">
+                <EChartsContainer option={weekdayOption} height={270} />
+              </div>
+            </article>
+
+            {/* 24-Hour Peak Hours Column Chart */}
+            <article className={panel}>
+              <div className="flex items-center gap-3 border-b border-slate-100/80 pb-3.5 dark:border-slate-800/80">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                  <Clock size={16} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                    Khung giờ vàng nhận bài nộp (0h - 23h)
+                  </h3>
+                  <p className={muted}>Xác định khung thời gian người dùng tập trung làm khảo sát trong ngày</p>
+                </div>
+              </div>
+              <div className="mt-2">
+                <EChartsContainer option={hoursOption} height={270} />
+              </div>
+            </article>
+          </section>
+        )}
+
+        {/* ================= SECTION 5: SURVEYS TABLE WITH SEARCH, FILTER & ACTIONS ================= */}
+        <section aria-label="Danh sách khảo sát" className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Danh sách khảo sát & Hiệu quả</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Tìm kiếm, xem báo cáo chi tiết hoặc sao chép link chia sẻ nhanh
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void exportXlsx()}
+              disabled={tableLoading || (surveys?.total ?? 0) === 0}
+              className="inline-flex h-9.5 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98] disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <Download size={14} className="text-emerald-600 dark:text-emerald-400" /> Xuất Excel (.xlsx)
+            </button>
+          </div>
+
+          {/* Search & Filter Controls */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
+              <input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Tìm theo tên khảo sát..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs outline-none transition focus:border-blue-600 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:focus:bg-slate-900"
+              />
+            </div>
+
+            <select
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none transition focus:border-blue-600 focus:bg-white dark:border-slate-700 dark:bg-slate-950"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="OPEN">Đang mở</option>
+              <option value="CLOSED">Đã đóng</option>
+              <option value="DRAFT">Bản nháp</option>
+              <option value="SCHEDULED">Lên lịch</option>
+            </select>
+
+            <select
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none transition focus:border-blue-600 focus:bg-white dark:border-slate-700 dark:bg-slate-950"
+            >
+              <option value="submissions">Nhiều phản hồi nhất</option>
+              <option value="views">Nhiều lượt xem nhất</option>
+              <option value="completion">Tỷ lệ hoàn thành cao nhất</option>
+              <option value="title">Tên bài khảo sát (A–Z)</option>
+            </select>
+          </div>
+
+          {/* Table Container */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
+            {tableError && <p className="p-4 text-xs font-medium text-rose-600">{tableError}</p>}
+            {tableLoading && <p className="p-4 text-xs text-slate-500 animate-pulse">Đang tải dữ liệu khảo sát...</p>}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 bg-slate-50/70 font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+                  <tr>
+                    <th scope="col" className="px-4 py-3.5">Tên khảo sát</th>
+                    <th scope="col" className="px-4 py-3.5">Trạng thái</th>
+                    <th scope="col" className="px-4 py-3.5 text-right">Lượt xem</th>
+                    <th scope="col" className="px-4 py-3.5 text-right">Phản hồi</th>
+                    <th scope="col" className="px-4 py-3.5 text-right">Tỷ lệ hoàn thành</th>
+                    <th scope="col" className="px-4 py-3.5 text-center">Thao tác nhanh</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                  {surveys?.rows.map((row) => {
+                    const statusInfo = statusConfig[row.status] || {
+                      label: row.status,
+                      bg: "bg-slate-100",
+                      text: "text-slate-700",
+                      dot: "bg-slate-400",
+                    };
+                    const isCopied = copiedId === row.surveyId;
+
+                    return (
+                      <tr key={row.surveyId} className="hover:bg-slate-50/80 transition-colors dark:hover:bg-slate-800/40">
+                        <td className="px-4 py-3.5 font-medium max-w-[320px]">
+                          <Link
+                            href={`/admin/survey/${row.surveyId}/detail`}
+                            className="truncate block font-semibold text-slate-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400 transition"
+                            title={row.title}
+                          >
+                            {row.title}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusInfo.bg} ${statusInfo.text}`}>
+                            <span className={`size-1.5 rounded-full ${statusInfo.dot}`} />
+                            {statusInfo.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-medium tabular-nums text-slate-600 dark:text-slate-300">
+                          {count(row.views)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                          {num(row.submissions)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-medium tabular-nums text-slate-600 dark:text-slate-300">
+                          {fmt(row.completionRate, "%")}
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => copySurveyLink(row.surveyId)}
+                              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-slate-800 transition"
+                              title="Sao chép link làm bài khảo sát"
+                            >
+                              {isCopied ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}
+                            </button>
+                            <Link
+                              href={`/admin/survey/${row.surveyId}/result`}
+                              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-slate-800 transition"
+                              title="Xem báo cáo kết quả chi tiết"
+                            >
+                              <BarChart3 size={15} />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {surveys && surveys.rows.length === 0 && (
+                <div className="py-10 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Không tìm thấy bài khảo sát nào phù hợp với bộ lọc.
+                </div>
+              )}
+            </div>
+
+            {/* Pagination */}
+            {surveys && surveys.total > 0 && (
+              <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-slate-500 dark:border-slate-800">
+                <span>Tổng số {num(surveys.total)} khảo sát</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
+                  >
+                    Trước
+                  </button>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Trang {page}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={page * 15 >= surveys.total}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
+                  >
+                    Sau
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
-        <section aria-label="Mức tham gia và chất lượng dữ liệu">
-          <Heading title="Mức tham gia và chất lượng dữ liệu" note="Số liệu từ phiên và phản hồi đã ghi nhận" />
-          <div className="grid gap-3 lg:grid-cols-3">
-            <article className={panel}><h3 className="text-sm font-semibold">Tương tác</h3><div className="mt-3 grid grid-cols-2 gap-3"><Metric label="Trung vị" value={duration(report.engagement.medianActiveDurationMs)} /><Metric label="Trang / phiên" value={fmt(report.engagement.averagePagesViewed)} /></div><p className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">Thời gian tab hiển thị và có focus là ước lượng, không phải thời gian làm bài tuyệt đối.</p></article>
-            <article className={panel}><div className="flex items-baseline justify-between"><h3 className="text-sm font-semibold">Độ đầy đủ câu trả lời</h3><strong className="text-lg tabular-nums">{fmt(report.completeness.completionRate, "%")}</strong></div><p className={muted}>Đã trả lời / câu áp dụng · chỉ phản hồi có bộ đếm lúc gửi</p><div className="mt-4 flex h-2 overflow-hidden rounded-sm bg-slate-100 dark:bg-slate-800" role="img" aria-label={"Đã trả lời " + num(report.completeness.answeredQuestions) + " trên " + num(report.completeness.applicableQuestions) + " câu áp dụng"}><div className="bg-blue-600" style={{ width: String(report.completeness.completionRate ?? 0) + "%" }} /><div className="bg-orange-500" style={{ width: String(report.completeness.completionRate == null ? 0 : 100 - report.completeness.completionRate) + "%" }} /></div><p className="mt-3 text-[11px]">Đã trả lời <strong>{num(report.completeness.answeredQuestions)}</strong> · Bỏ qua <strong>{num(report.completeness.skippedQuestions)}</strong> / {num(report.completeness.applicableQuestions)} câu</p><p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{num(report.completeness.exactResponses)} phản hồi chính xác · TB {fmt(report.completeness.averageAnswered)} câu / phản hồi</p>{report.completeness.estimatedLegacyResponses > 0 && <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">{num(report.completeness.estimatedLegacyResponses)} phản hồi cũ thiếu bộ đếm, không tính vào tỷ lệ.</p>}</article>
-            <article className={panel}><h3 className="text-sm font-semibold">Độ phủ tracking</h3><div className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-1">{[["Phản hồi có phiên", report.quality.responseSessionCoverage], ["Phản hồi có đếm câu", report.quality.questionCountCoverage], ["Phiên có thiết bị", report.quality.deviceCoverage], ["Phiên có nguồn", report.quality.sourceCoverage], ["Phản hồi có thời gian", report.quality.durationCoverage]].map(([label, value]) => <div key={String(label)} className="flex items-center gap-2 text-[11px]"><span className="min-w-0 flex-1 truncate">{label}</span><div className="h-1 w-14 bg-slate-100 dark:bg-slate-800"><div className="h-full bg-blue-600" style={{ width: String(value ?? 0) + "%" }} /></div><strong className="w-10 text-right tabular-nums">{fmt(value as number | null, "%")}</strong></div>)}</div></article>
-          </div>
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <article className={panel}><h3 className="text-sm font-semibold">Phản hồi theo thứ</h3><div className="mt-1 h-[152px]" role="img" aria-label="Phản hồi theo thứ trong tuần"><ResponsiveContainer width="100%" height="100%" minWidth={240}><BarChart data={report.engagement.byWeekday.map(x => ({ ...x, label: x.day === 7 ? "CN" : "Thứ " + (x.day + 1) }))} margin={{ top: 5, right: 4, left: -22 }}><XAxis dataKey="label" tick={{ fontSize: 10 }} /><YAxis allowDecimals={false} tick={{ fontSize: 10 }} /><Tooltip /><Bar name="Phản hồi" dataKey="submissions" fill="#2563eb" /></BarChart></ResponsiveContainer></div><DataTable headers={["Thứ", "Phản hồi"]} rows={report.engagement.byWeekday.map(x => [x.day === 7 ? "CN" : "Thứ " + (x.day + 1), num(x.submissions)])} /></article>
-            <article className={panel}><h3 className="text-sm font-semibold">Phản hồi theo giờ Việt Nam</h3><div className="mt-1 h-[152px]" role="img" aria-label="Phản hồi theo giờ Việt Nam"><ResponsiveContainer width="100%" height="100%" minWidth={240}><BarChart data={report.engagement.byHour} margin={{ top: 5, right: 4, left: -22 }}><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis allowDecimals={false} tick={{ fontSize: 10 }} /><Tooltip /><Bar name="Phản hồi" dataKey="submissions" fill="#f97316" /></BarChart></ResponsiveContainer></div><DataTable headers={["Giờ", "Phản hồi"]} rows={report.engagement.byHour.map(x => [x.hour + "h", num(x.submissions)])} /></article>
-          </div>
-        </section>
-
-        <section aria-label="So sánh khảo sát">
-          <Heading title="So sánh khảo sát" note={comparison} />
-          <div className="grid gap-3 lg:grid-cols-[minmax(270px,.8fr)_minmax(0,1.5fr)]">
-            <article className={panel}><h3 className="text-sm font-semibold">5 khảo sát nhiều phản hồi nhất</h3>{topError ? <p role="alert" className="mt-3 text-xs text-rose-700 dark:text-rose-300">{topError}</p> : !topFive ? <p role="status" className={muted + " mt-3"}>Đang tải…</p> : topData.length ? <><div className="mt-1 h-[177px]" role="img" aria-label={topData.map(x => x.name + ": " + x.responses).join(", ")}><ResponsiveContainer width="100%" height="100%" minWidth={240}><BarChart data={topData} layout="vertical" margin={{ top: 4, left: 0, right: 4 }}><XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} /><YAxis type="category" dataKey="name" width={104} tick={{ fontSize: 10 }} /><Tooltip /><Bar name="Phản hồi" dataKey="responses" fill="#2563eb" radius={[0, 3, 3, 0]} /></BarChart></ResponsiveContainer></div><ol className="mt-1 space-y-0.5 text-[11px] text-slate-600 dark:text-slate-300">{topFive.rows.map(x => <li key={x.surveyId} className="flex justify-between gap-2"><span className="truncate" title={x.title}>{x.title}</span><strong>{num(x.submissions)}</strong></li>)}</ol></> : <p className={muted + " mt-3"}>Chưa có khảo sát trong phạm vi này.</p>}</article>
-            <article className={panel + " self-start"}><h3 className="text-sm font-semibold">Cách đọc số liệu</h3><dl className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2"><div><dt className="font-semibold">View / submit</dt><dd className="text-slate-600 dark:text-slate-300">Sự kiện xem khảo sát / phản hồi đã lưu.</dd></div><div><dt className="font-semibold">Gửi / phiên</dt><dd className="text-slate-600 dark:text-slate-300">Phiên xem trong kỳ đã gửi, cùng nhóm phiên.</dd></div><div><dt className="font-semibold">Độ đầy đủ</dt><dd className="text-slate-600 dark:text-slate-300">Đã trả lời / câu áp dụng trên phản hồi có bộ đếm chính xác.</dd></div><div><dt className="font-semibold">Xu hướng</dt><dd className="text-slate-600 dark:text-slate-300">{comparison}</dd></div></dl><p className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">Mở báo cáo từng khảo sát cần quyền xem khảo sát riêng.</p></article>
-          </div>
-          <article className={panel + " mt-3"}>
-            <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">Danh sách khảo sát</h3><p className={muted}>Tìm kiếm, lọc trạng thái, sắp xếp và xuất XLSX theo phạm vi {scope}.</p></div><button type="button" onClick={() => void exportXlsx()} disabled={!valid || tableLoading} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50"><Download size={14} />Xuất XLSX</button></div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(180px,1fr)_150px_170px]"><label className="text-[11px] font-medium">Tìm khảo sát<input className={field} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Tên khảo sát" /></label><label className="text-[11px] font-medium">Trạng thái<select className={field} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}><option value="">Tất cả</option>{Object.entries(names).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="text-[11px] font-medium">Sắp xếp<select className={field} value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}><option value="submissions">Nhiều phản hồi</option><option value="views">Nhiều lượt xem</option><option value="completion">Đầy đủ nhất</option><option value="title">Tên A–Z</option></select></label></div>
-            {tableError && <p role="alert" className="mt-2 text-xs text-rose-700 dark:text-rose-300">{tableError}</p>}
-            {tableLoading && <p role="status" className={muted + " mt-2"}>Đang tải bảng khảo sát…</p>}
-            <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[940px] table-fixed text-left text-[11px]"><colgroup><col style={{ width: 220 }} /><col style={{ width: 94 }} /><col style={{ width: 90 }} /><col style={{ width: 65 }} /><col style={{ width: 95 }} /><col style={{ width: 115 }} /><col style={{ width: 95 }} /><col style={{ width: 112 }} /><col style={{ width: 112 }} /></colgroup><thead className="bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300"><tr>{["Khảo sát", "Trạng thái", "Lượt truy cập", "Submit", "Tỷ lệ gửi", "Đầy đủ", "Tương tác", "Xu hướng truy cập", "Xu hướng submit"].map(x => <th key={x} scope="col" className="px-2 py-2 font-semibold">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{surveys?.rows.map(x => <tr key={x.surveyId} className="hover:bg-slate-50 dark:hover:bg-slate-800/50"><th scope="row" className="px-2 py-2 font-medium"><span className="block truncate" title={x.title}>{x.title}</span></th><td className="px-2 py-2">{names[x.status] ?? x.status}</td><td className="px-2 py-2 tabular-nums">{count(x.views)}</td><td className="px-2 py-2 tabular-nums">{num(x.submissions)}</td><td className="px-2 py-2 tabular-nums">{fmt(x.conversionRate, "%")}</td><td className="px-2 py-2 tabular-nums">{fmt(x.completionRate, "%")}{x.estimatedLegacyResponses > 0 && <small className="block text-[10px] text-amber-700 dark:text-amber-300">{num(x.estimatedLegacyResponses)} cũ thiếu đếm</small>}</td><td className="px-2 py-2 tabular-nums">{duration(x.medianActiveDurationMs)}</td><td className="px-2 py-2"><TrendValue value={x.viewsTrend} /></td><td className="px-2 py-2"><TrendValue value={x.submissionsTrend} /></td></tr>)}</tbody></table>{surveys && !surveys.rows.length && <p className={muted + " py-8 text-center"}>Không có khảo sát phù hợp.</p>}</div>
-            <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2 text-xs dark:border-slate-800"><span>{num(surveys?.total ?? 0)} khảo sát</span><div className="flex items-center gap-2"><button type="button" className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-40 dark:border-slate-700" onClick={() => setPage(x => Math.max(1, x - 1))} disabled={page === 1}>Trước</button><span>Trang {page}</span><button type="button" className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-40 dark:border-slate-700" onClick={() => setPage(x => x + 1)} disabled={!surveys || page * 20 >= surveys.total}>Sau</button></div></div>
-          </article>
-        </section>
-      </div>}
+        {/* ================= FULLSCREEN PRESENTATION MODAL ================= */}
+        <DashboardPresentationModal
+          isOpen={isPresentationOpen}
+          onClose={() => setIsPresentationOpen(false)}
+          report={report}
+          topFive={topFive}
+          scopeLabel={scopeLabel}
+          scope={scope}
+          timelineOption={timelineOption}
+          statusOption={statusOption}
+          topSurveysOption={topSurveysOption}
+          conversionOption={conversionOption}
+          devicesOption={devicesOption}
+          sourcesOption={sourcesOption}
+          mediumsOption={mediumsOption}
+          weekdayOption={weekdayOption}
+          hoursOption={hoursOption}
+          totalViews={totalViews}
+          totalSubmissions={totalSubmissions}
+          completionRate={completionRate}
+          avgTimeMs={report?.engagement.avgDurationMs}
+          loading={loading}
+          onRefresh={() => setAsOf(Date.now())}
+        />
+      </div>
     </div>
-  </main>;
+  );
 }

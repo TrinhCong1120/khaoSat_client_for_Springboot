@@ -7,14 +7,14 @@ import { PlusIcon } from "@/icons";
 import { useRouter } from "next/navigation";
 import SurveyTable from "@/components/surveys/SurveyTable";
 import SurveyFormModal from "@/components/surveys/SurveyFormModal";
-import { API_SURVEYS } from "@/lib/api";
+import { API_GROUPS, API_SURVEYS } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
 import SurveyAccessModal from "@/components/surveys/SurveyAccessModal";
 import SurveyNameConfirmationModal from "@/components/surveys/SurveyNameConfirmationModal";
 import SurveyPublicationModal, { type PublishableSurvey, type SurveyStatus } from "@/components/surveys/SurveyPublicationModal";
-import { getUser } from "@/lib/auth";
 import { withSurveyActions } from "@/lib/surveyActions";
 import type { PagedResult } from "@/types/report";
+import { getPermissions } from "@/lib/auth";
 
 export interface Survey {
   id: string;
@@ -29,6 +29,11 @@ export interface Survey {
   canEdit: boolean;
   canDelete: boolean;
   canManageAccess: boolean;
+  canViewResponses?: boolean;
+  canExportData?: boolean;
+  canManagePublication?: boolean;
+  groupId?: string;
+  sharedDirectly?: boolean;
 }
 
 const getToken = () =>
@@ -41,23 +46,82 @@ export default function SurveyPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [groups, setGroups] = useState<{ id: string; name: string; permissions: string[] }[]>([]);
+  const [groupFilter, setGroupFilter] = useState("");
+  const [filterReady, setFilterReady] = useState(false);
   const [accessSurvey, setAccessSurvey] = useState<Survey | null>(null);
   const [publicationSurvey, setPublicationSurvey] = useState<Survey | null>(null);
   const [deleteSurvey, setDeleteSurvey] = useState<Survey | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [moveSurvey, setMoveSurvey] = useState<Survey | null>(null);
+  const [moveTarget, setMoveTarget] = useState("");
+  const [moveError, setMoveError] = useState("");
+  const [canManageFailed, setCanManageFailed] = useState(false);
   const pageSize = 10;
 
   const router = useRouter();
-  const currentUser = getUser();
+  useEffect(() => setCanManageFailed(getPermissions().includes("survey_failed_manage")), []);
   const canManageAccess = (survey: Survey) => survey.canManageAccess;
   const canEdit = (survey: Survey) => survey.canEdit;
   const canDelete = (survey: Survey) => survey.canDelete;
+  const canMove = (survey: Survey) => groups.some((group) => group.id === survey.groupId && group.permissions.includes("MANAGE_GROUP"))
+    && groups.some((group) => group.id !== survey.groupId && group.permissions.includes("MANAGE_GROUP"));
+  const canCreate = groups.some((group) => group.permissions.includes("CREATE_SURVEY"));
+  const scopeName = groupFilter === "shared" ? "Được chia sẻ riêng"
+    : groups.find((group) => group.id === groupFilter)?.name ?? "Tất cả khảo sát";
+  const changeFilter = (value: string) => {
+    setPage(1);
+    setGroupFilter(value);
+    const url = new URL(window.location.href);
+    if (value && value !== "shared") url.searchParams.set("groupId", value);
+    else url.searchParams.delete("groupId");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  };
+  useEffect(() => {
+    void fetch(API_GROUPS, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Không tải được group.")))
+      .then((rows) => setGroups(rows as typeof groups))
+      .catch((cause) => console.error(cause));
+  }, []);
+  useEffect(() => {
+    setGroupFilter(new URLSearchParams(window.location.search).get("groupId") ?? "");
+    setFilterReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const isGoogleConnected = params.get("google_connected") === "true";
+    const isGoogleError = params.get("google_error") === "true";
+
+    if (isGoogleConnected || isGoogleError) {
+      if (window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage(
+            {
+              type: isGoogleConnected ? "GOOGLE_OAUTH_SUCCESS" : "GOOGLE_OAUTH_ERROR",
+              message: params.get("reason") || undefined,
+            },
+            "*"
+          );
+        } catch {}
+        window.close();
+        return;
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("google_connected");
+      url.searchParams.delete("google_error");
+      url.searchParams.delete("reason");
+      window.history.replaceState(null, "", url.pathname + (url.search || ""));
+    }
+  }, []);
   const fetchSurveys = useCallback(async () => {
     try {
       setLoading(true);
 
-      const res = await fetch(`${API_SURVEYS}/page?page=${page}`, {
+      const filter = groupFilter === "shared" ? "&shared=true" : groupFilter ? `&groupId=${encodeURIComponent(groupFilter)}` : "";
+      const res = await fetch(`${API_SURVEYS}/page?page=${page}${filter}`, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
@@ -76,11 +140,11 @@ export default function SurveyPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, groupFilter]);
 
   useEffect(() => {
-    fetchSurveys();
-  }, [fetchSurveys]);
+    if (filterReady) void fetchSurveys();
+  }, [fetchSurveys, filterReady]);
 
   const handleDelete = async (survey: Survey) => {
     setDeleting(true);
@@ -105,40 +169,62 @@ export default function SurveyPage() {
     }
   };
 
+  const handleMove = async () => {
+    if (!moveSurvey || !moveTarget) return;
+    setMoveError("");
+    const response = await fetch(`${API_SURVEYS}/${moveSurvey.id}/group`, {
+      method: "PUT", headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ groupId: moveTarget }),
+    });
+    if (!response.ok) { setMoveError((await response.json().catch(() => null))?.message || "Không chuyển được khảo sát."); return; }
+    setMoveSurvey(null); setMoveTarget(""); await fetchSurveys();
+  };
+
   const handlePublicationChanged = (updated: PublishableSurvey) => {
     setSurveys((current) => current.map((survey) => survey.id === updated.id ? { ...survey, ...updated } : survey));
     setPublicationSurvey((current) => current?.id === updated.id ? { ...current, ...updated } : current);
   };
 
   return (
-    <div className="p-3 sm:p-4 lg:p-6">
-      <div className="flex flex-col items-stretch gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
+    <main className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
+          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
             Quản lý khảo sát
           </h1>
-          <p className="text-sm text-gray-500">
-            Danh sách và quản lý các cuộc khảo sát trực tuyến
+          <p className="mt-1 text-sm text-gray-500">
+            Xem, cập nhật và quản lý quyền của các khảo sát bạn được truy cập.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link
+          <Link href="/admin/survey/groups" className="inline-flex min-h-10 items-center rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Quản lý nhóm</Link>
+          {canManageFailed && <Link
             href="/admin/survey/failsubmit"
-            className="inline-flex items-center justify-center rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/70"
+            className="inline-flex min-h-10 items-center rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Phản hồi lỗi
-          </Link>
-          {currentUser?.permissions.includes("survey_create") && <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
+          </Link>}
+          {canCreate && <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
             <PlusIcon className="w-5 h-5" /> Tạo khảo sát
           </Button>}
         </div>
-      </div>
+      </header>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm p-4">
-        {loading ? (
-          <div className="flex justify-center py-10 text-gray-500">
-            Đang tải danh sách khảo sát...
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{scopeName}</h2>
+            <p className="mt-0.5 text-sm text-gray-500">{loading ? "Đang tải..." : total + " khảo sát"}</p></div>
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">Phạm vi hiển thị
+          <select value={groupFilter} onChange={(event) => changeFilter(event.target.value)} className="min-h-10 min-w-48 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+            <option value="">Tất cả được xem</option><option value="shared">Được chia sẻ riêng</option>
+            {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
+        </label>
+        </div>
+        {loading || !filterReady ? (
+          <div className="space-y-3 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900" aria-label="Đang tải danh sách khảo sát">
+            {[1, 2, 3, 4].map((item) => <div key={item} className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />)}
           </div>
         ) : (
           <>
@@ -148,21 +234,26 @@ export default function SurveyPage() {
               onDelete={(survey) => { setDeleteError(""); setDeleteSurvey(survey); }}
               onManagePublication={setPublicationSurvey}
               onManageAccess={(survey) => canManageAccess(survey) && setAccessSurvey(survey)}
+              onMove={(survey) => { setMoveSurvey(survey); setMoveTarget(""); setMoveError(""); }}
+              canMove={canMove}
               canManageAccess={canManageAccess}
               canEdit={canEdit}
               canDelete={canDelete}
+              onRefresh={fetchSurveys}
             />
             <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
           </>
         )}
-      </div>
+      </section>
 
       {isModalOpen && (
         <SurveyFormModal
+          initialGroupId={groupFilter && groupFilter !== "shared" ? groupFilter : undefined}
           onClose={() => setIsModalOpen(false)}
           onSubmitSuccess={fetchSurveys}
         />
       )}
+      {moveSurvey && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-md rounded-xl bg-white p-5 dark:bg-gray-900"><h2 className="font-semibold">Chuyển group: {moveSurvey.title}</h2><select value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)} className="mt-4 w-full rounded-lg border px-3 py-2 dark:bg-gray-950"><option value="">Chọn group đích</option>{groups.filter((group) => group.id !== moveSurvey.groupId && group.permissions.includes("MANAGE_GROUP")).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>{moveError && <p role="alert" className="mt-2 text-sm text-red-600">{moveError}</p>}<div className="mt-4 flex justify-end gap-2"><button onClick={() => setMoveSurvey(null)} className="rounded-lg border px-3 py-2">Hủy</button><button disabled={!moveTarget} onClick={() => void handleMove()} className="rounded-lg bg-blue-600 px-3 py-2 text-white disabled:opacity-40">Chuyển</button></div></div></div>}
       {accessSurvey && (
         <SurveyAccessModal
           survey={accessSurvey}
@@ -190,6 +281,6 @@ export default function SurveyPage() {
           onConfirm={() => handleDelete(deleteSurvey)}
         />
       )}
-    </div>
+    </main>
   );
 }

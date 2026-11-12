@@ -6,6 +6,8 @@ import PermissionMatrixModal from "@/components/functions/PermissionMatrixModal"
 import { API_FUNCTIONS } from "@/lib/api";
 import Pagination from "@/components/ui/pagination/Pagination";
 import type { PagedResult } from "@/types/report";
+import { FiHome, FiChevronRight, FiLock, FiRefreshCw, FiAlertCircle } from "react-icons/fi";
+import Link from "next/link";
 
 const getToken = () =>
   localStorage.getItem("token") ||
@@ -20,17 +22,16 @@ interface Func {
 export default function FunctionsPage() {
   const [functions, setFunctions] = useState<Func[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 10;
 
-  // ======================
-  // FETCH FUNCTIONS
-  // ======================
   const fetchFunctions = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch(`${API_FUNCTIONS}/page?page=${page}`, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
@@ -47,6 +48,7 @@ export default function FunctionsPage() {
       setTotal(data.totalElements);
     } catch (err) {
       console.error(err);
+      setError(err instanceof Error ? err.message : "Đã có lỗi xảy ra");
     } finally {
       setLoading(false);
     }
@@ -56,39 +58,107 @@ export default function FunctionsPage() {
     fetchFunctions();
   }, [fetchFunctions]);
 
-  // ======================
-  // UI
-  // ======================
   return (
-    <div className="p-3 sm:p-4 lg:p-6">
-
-      {/* HEADER */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
+    <div className="space-y-6 p-4 lg:p-8 max-w-7xl mx-auto">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <Link
+          href="/admin"
+          className="flex items-center gap-1.5 transition-colors hover:text-brand-600 dark:hover:text-brand-400"
+        >
+          <FiHome size={13} />
+          <span>Trang chủ</span>
+        </Link>
+        <FiChevronRight size={12} className="text-gray-400" />
+        <span className="font-semibold text-gray-800 dark:text-gray-200">
           Phân quyền chức năng
-        </h1>
-        <p className="text-sm text-gray-500">
-          Quản lý và thiết lập quyền hạn cho từng chức năng trong hệ thống
-        </p>
+        </span>
+      </nav>
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/60 dark:text-brand-400">
+            <FiLock size={20} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+              Phân quyền chức năng
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Quản lý và thiết lập quyền hạn cho từng chức năng trong hệ thống
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm p-4">
-        {loading ? (
-          <div className="flex justify-center py-10 text-gray-500">
-            Đang tải dữ liệu...
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Tổng chức năng</p>
+          <p className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{total}</p>
+        </div>
+        <div className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Trong trang</p>
+          <p className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{functions.length}</p>
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-2xl border border-gray-100 bg-white p-12 dark:border-gray-800 dark:bg-gray-900">
+          <div className="size-9 animate-spin rounded-full border-3 border-brand-500 border-t-transparent" />
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+            Đang tải danh sách chức năng...
+          </p>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && !loading && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center dark:border-rose-900/60 dark:bg-rose-950/30">
+          <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400">
+            <FiAlertCircle size={24} />
           </div>
-        ) : (
-          <>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Không thể tải dữ liệu</h3>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{error}</p>
+          <button
+            type="button"
+            onClick={fetchFunctions}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-brand-700"
+          >
+            <FiRefreshCw size={13} />
+            <span>Thử lại</span>
+          </button>
+        </div>
+      )}
+
+      {/* Table */}
+      {!loading && !error && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-gray-200/80 bg-white shadow-xs dark:border-gray-800 dark:bg-gray-900 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+              <h2 className="text-sm font-bold text-gray-800 dark:text-white/90">
+                Danh sách chức năng
+              </h2>
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                {total} chức năng
+              </span>
+            </div>
             <FunctionTable
               functions={functions}
               onPermission={(id: string) => setSelectedFunction(id)}
             />
-            <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
-          </>
-        )}
-      </div>
+          </div>
 
-      {/* MODAL */}
+          {/* Pagination */}
+          <div className="rounded-2xl border border-gray-200/80 bg-white p-3 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+            <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal */}
       {selectedFunction && (
         <PermissionMatrixModal
           functionId={selectedFunction}

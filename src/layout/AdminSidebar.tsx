@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import * as FiIcons from "react-icons/fi";
 import { FiChevronDown, FiMoreHorizontal } from "react-icons/fi";
-import { API_MENUS } from "@/lib/api";
+import { API_GROUPS, API_MENUS, API_SURVEYS } from "@/lib/api";
+import { getPermissions, isUserAdmin } from "@/lib/auth";
 
 // ======================
 // TYPE
@@ -184,10 +185,12 @@ const AdminSidebar: React.FC = () => {
           throw new Error("Dữ liệu menu không đúng định dạng");
         }
 
+        const admin = isUserAdmin();
+        const canManageFailed = getPermissions().includes("survey_failed_manage");
         const convert = (items: MenuResponseItem[]): NavItem[] =>
-          items.map((item) => ({
+          items.filter((item) => (admin || !["/users", "/roles", "/menus", "/functions", "/apikeys", "/chatbot-data"].includes(item.path || "")) && (canManageFailed || item.path !== "/survey/failsubmit")).map((item) => ({
             name: translateName(item.name || "Menu"),
-            path: item.path ? "/admin" + item.path : undefined,
+            path: !item.path ? undefined : item.path === "/" ? "/admin" : "/admin" + item.path,
             icon: getIcon(item.icon || ""),
             children:
               Array.isArray(item.children) && item.children.length > 0
@@ -195,7 +198,17 @@ const AdminSidebar: React.FC = () => {
                 : undefined,
           }));
 
-        setMenuData(convert(data));
+        const next = convert(data);
+        const visible = await Promise.allSettled([
+          fetch(API_GROUPS, { headers: { Authorization: `Bearer ${token}` } }).then((response) => response.ok ? response.json() : []),
+          fetch(`${API_SURVEYS}/page?page=1`, { headers: { Authorization: `Bearer ${token}` } }).then((response) => response.ok ? response.json() : null),
+        ]);
+        const groups = visible[0].status === "fulfilled" && Array.isArray(visible[0].value) ? visible[0].value : [];
+        const surveyCount = visible[1].status === "fulfilled" ? Number(visible[1].value?.totalElements ?? 0) : 0;
+        const hasSurveyMenu = (items: NavItem[]): boolean => items.some((item) => item.path === "/admin/survey" || hasSurveyMenu(item.children ?? []));
+        if ((groups.length > 0 || surveyCount > 0) && !hasSurveyMenu(next))
+          next.push({ name: "Khảo sát", path: "/admin/survey", icon: getIcon("FolderIcon") });
+        setMenuData(next);
       } catch (err) {
         console.warn("Không thể tải menu:", err);
         setMenuData([]);
@@ -427,6 +440,32 @@ const AdminSidebar: React.FC = () => {
 
           {renderMenu()}
         </nav>
+      </div>
+      {/* FOOTER / USER ACCOUNT SECTION */}
+      <div className="border-t border-gray-100 p-2 dark:border-gray-800">
+        <Link
+          href="/admin/profile"
+          className={`menu-item group ${
+            isActive("/admin/profile") ? "menu-item-active" : "menu-item-inactive"
+          } ${!expanded ? "lg:justify-center" : ""}`}
+          title="Tài khoản của tôi"
+        >
+          <span
+            className={
+              isActive("/admin/profile")
+                ? "menu-item-icon-active"
+                : "menu-item-icon-inactive"
+            }
+          >
+            <FiIcons.FiUser size={18} />
+          </span>
+
+          {expanded && (
+            <span className="menu-item-text font-bold text-sm tracking-tight">
+              Tài khoản của tôi
+            </span>
+          )}
+        </Link>
       </div>
     </aside>
   );

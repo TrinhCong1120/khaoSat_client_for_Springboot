@@ -21,6 +21,14 @@ export default function ResponseAnswerCell({ column, answer }: Props) {
     return <AddressAnswerDisplay answer={answer} />;
   }
 
+  const isMatrix = ["MATRIX_SINGLE", "MATRIX_MULTI", "MATRIX_INPUT", "DYNAMIC_TABLE"].includes(
+    String(column?.questionTypeCode ?? "").toUpperCase()
+  );
+
+  if (isMatrix || answer?.matrixData) {
+    return <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">✓ Đã điền</span>;
+  }
+
   if (answer?.value != null && String(answer.value) !== "") {
     return <span>{String(answer.value)}</span>;
   }

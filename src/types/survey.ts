@@ -9,6 +9,7 @@ export type AnswerPayload = {
   province?: string | null;
   ward?: string | null;
   addressDetail?: string | null;
+  matrixData?: string | null;
 };
 
 type SurveyQuestion = {
@@ -27,6 +28,7 @@ type RawAnswer = {
   province?: unknown;
   ward?: unknown;
   addressDetail?: unknown;
+  matrixData?: unknown;
 };
 
 export function getQuestionTypeCode(q: { questionTypeCode?: string | null }) {
@@ -54,6 +56,17 @@ export function buildPublicSurveySubmitAnswers(
     if (!q) continue;
 
     const typeCode = getQuestionTypeCode(q);
+
+    // Xử lý các loại câu hỏi Bảng biểu & Ma trận
+    if (["MATRIX_SINGLE", "MATRIX_MULTI", "MATRIX_INPUT", "DYNAMIC_TABLE"].includes(typeCode)) {
+      if (raw.matrixData != null) {
+        const matrixDataStr = typeof raw.matrixData === "string" ? raw.matrixData : JSON.stringify(raw.matrixData);
+        if (matrixDataStr.trim().length > 0) {
+          out.push({ questionId, matrixData: matrixDataStr });
+          continue;
+        }
+      }
+    }
 
     if (typeCode === "ADDRESS") {
       const province = String(raw.province ?? "").trim();

@@ -12,8 +12,8 @@ export type SurveyRow = {
 export type Report = {
   period: { from: string; to: string; bucket: string; timezone: string; filterMode: "ALL" | "FROM_ONLY" | "TO_ONLY" | "BETWEEN"; trendMode: "PREVIOUS_EQUAL_PERIOD" | "RECENT_30_DAYS"; trendFrom: string; trendTo: string; previousFrom: string; previousTo: string };
   generatedAt: string;
-  system: { accounts: number; activeAccounts: number; inactiveAccounts: number; roles: number; surveyCreators: number; roleDistribution: { name: string; users: number }[] };
-  website: { visitorsToday: number | null; daily: { date: string; visitors: number | null; newVisitors: number | null; returningVisitors: number | null }[]; timeline: { label: string; start: string; visitors: number | null; newVisitors: number | null; returningVisitors: number | null }[]; trackingStartedAt: string | null };
+  system: { accounts: number; activeAccounts: number; inactiveAccounts: number; roles: number; surveyCreators: number; roleDistribution: { name: string; users: number }[] } | null;
+  website: { visitorsToday: number | null; daily: { date: string; visitors: number | null; newVisitors: number | null; returningVisitors: number | null }[]; timeline: { label: string; start: string; visitors: number | null; newVisitors: number | null; returningVisitors: number | null }[]; trackingStartedAt: string | null } | null;
   portfolio: { totalSurveys: number; statuses: Record<string, number>; createdInPeriod: number; publishedInPeriod: number; withoutResponses: number };
   activity: { views: number | null; submissions: number; timeline: { label: string; start: string; views: number | null; submissions: number }[]; trackingStatus: string; trackingStartedAt: string | null };
   funnel: { viewed: number; started: number; submitted: number; inProgress: number; abandoned: number; onlyViewed: number; viewToStartRate: number | null; startToSubmitRate: number | null; viewToSubmitRate: number | null; provisional: boolean };
@@ -26,10 +26,11 @@ export type Report = {
 };
 export type SurveyPage = { total: number; page: number; size: number; rows: SurveyRow[] };
 
-export function reportParams(from?: string, to?: string, bucket = "AUTO") {
+export function reportParams(from?: string, to?: string, bucket = "AUTO", scope?: string) {
   const params = new URLSearchParams({ bucket });
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (scope) params.set("scope", scope);
   return params;
 }
 

@@ -10,6 +10,8 @@ import AdminSidebar from "@/layout/AdminSidebar";
 import AdminHeader from "@/layout/AdminHeader";
 import Backdrop from "@/layout/Backdrop";
 
+import { isAuthenticated } from "@/lib/auth";
+
 // ======================
 // MAIN LAYOUT (CHECK TOKEN)
 // ======================
@@ -21,18 +23,13 @@ export default function AdminLayout({
   const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
 
-
   useEffect(() => {
-    const token =
-      localStorage.getItem("token") ||
-      sessionStorage.getItem("token");
-
-    if (!token) {
+    if (!isAuthenticated()) {
       router.replace("/signin");
     } else {
       setIsChecking(false);
     }
-  }, []);
+  }, [router]);
 
   if (isChecking) return null;
 

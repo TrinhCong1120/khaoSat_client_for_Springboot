@@ -1,4 +1,7 @@
-import React, { useEffect } from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { CloseIcon } from "@/icons";
 
 interface ModalProps {
@@ -21,6 +24,12 @@ const Modal: React.FC<ModalProps> = ({
   className,
   blocking = false,
 }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (blocking) return;
     const handleEsc = (event: KeyboardEvent) => {
@@ -35,9 +44,21 @@ const Modal: React.FC<ModalProps> = ({
     };
   }, [onClose, blocking]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
 
-  return (
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-99999 flex items-center justify-center overflow-y-auto overscroll-contain bg-gray-950/65 p-3 backdrop-blur-sm sm:p-6"
       onClick={blocking ? undefined : onClose}
@@ -83,7 +104,8 @@ const Modal: React.FC<ModalProps> = ({
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

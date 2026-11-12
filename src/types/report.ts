@@ -42,6 +42,8 @@ export type ResponseQuestion = {
   addressDetail?: string | null;
   optionIds?: string[];
   optionTexts?: string[];
+  matrixData?: string | null;
+  matrixConfig?: string | null;
   formattedAnswer?: string | null;
 };
 
@@ -63,6 +65,37 @@ export type ResponseDetail = {
   requestId: string;
   submittedAt: string;
   pages: ResponsePage[];
+};
+
+export type MatrixCellStatistic = {
+  columnId: string;
+  columnLabel: string;
+  count: number;
+  percentage: number;
+};
+
+export type MatrixRowStatistic = {
+  rowId: string;
+  rowLabel: string;
+  totalCount: number;
+  averageScore?: number | null;
+  cells: MatrixCellStatistic[];
+};
+
+export type MatrixColumnStatistic = {
+  columnId: string;
+  columnLabel: string;
+  type?: string;
+  filledCount: number;
+  averageValue?: number | null;
+  minValue?: number | null;
+  maxValue?: number | null;
+};
+
+export type MatrixStatistics = {
+  totalResponses: number;
+  rows?: MatrixRowStatistic[];
+  columns?: MatrixColumnStatistic[];
 };
 
 export type ChoiceOptionStatistic = {
@@ -92,6 +125,7 @@ export type SurveyQuestionStatistic = {
     topWards?: { name: string; count: number }[];
   } | null;
   textStatistics?: { count: number; topAnswers: { text: string; count: number }[] } | null;
+  matrixStatistics?: MatrixStatistics | null;
 };
 
 export type SurveyStatistics = {
@@ -115,11 +149,27 @@ export type ReportFilter = {
 
 export type SurveyResultQuestion = {
   id: string;
+  pageId?: string | null;
+  pageTitle?: string | null;
+  pageOrderIndex?: number | null;
   text?: string | null;
   title?: string | null;
   questionText?: string | null;
   questionTypeCode?: string | null;
+  matrixConfig?: string | null;
   options?: Array<{ id: string; text?: string | null; optionText?: string | null }>;
+};
+
+export type GoogleIntegrationInfo = {
+  id?: string;
+  googleFormId: string;
+  responderUri?: string;
+  editUrl?: string;
+  responseUrl?: string;
+  syncStatus?: string;
+  lastSyncedAt?: string;
+  autoSyncEnabled?: boolean;
+  isAcceptingResponses?: boolean | null;
 };
 
 export type SurveyResultDetail = {
@@ -131,6 +181,7 @@ export type SurveyResultDetail = {
   creatorUserId?: string | null;
   scheduleWarnings?: string[];
   pages?: Array<{ id: string; title?: string | null; questions?: SurveyResultQuestion[] }>;
+  googleIntegration?: GoogleIntegrationInfo | null;
 };
 
 export type TrafficPoint = {
@@ -176,4 +227,69 @@ export type SurveyPageStatistics = {
     submittedResponsesWithAnswers: number;
     trackingStatus: string;
   }>;
+};
+
+export type DatasetAnswerValue = {
+  text?: string | null;
+  number?: number | null;
+  date?: string | null;
+  optionTexts?: string[];
+  optionIds?: string[];
+  province?: string | null;
+  ward?: string | null;
+  addressDetail?: string | null;
+  formatted?: string | null;
+  matrixData?: string | null;
+};
+
+export type DatasetRecord = {
+  id: string;
+  requestId: string;
+  submittedAt: string;
+  durationMs?: number | null;
+  totalScore?: number | null;
+  answers: Record<string, DatasetAnswerValue>;
+};
+
+export type SurveyDataset = {
+  surveyId: string;
+  surveyTitle: string;
+  totalResponses: number;
+  canExportData?: boolean;
+  piiIncluded?: boolean;
+  piiQuestionIds?: string[];
+  piiTypes?: Record<string, string>;
+  records: DatasetRecord[];
+};
+
+export type ReportViewScope = "PRIVATE" | "SHARED";
+
+export type ReportViewItem = {
+  id: string;
+  surveyId: string;
+  name: string;
+  description?: string | null;
+  scope: ReportViewScope;
+  definition: Record<string, unknown>;
+  createdByUserId: string;
+  isDefault: boolean;
+  canEdit: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaveReportViewPayload = {
+  name: string;
+  description?: string | null;
+  scope: ReportViewScope;
+  definition: Record<string, unknown>;
+  isDefault: boolean;
+};
+
+export type CreateExportLogPayload = {
+  exportFormat: "EXCEL" | "CSV";
+  reportName: string;
+  rowCount: number;
+  includedPii: boolean;
+  definition?: Record<string, unknown>;
 };
