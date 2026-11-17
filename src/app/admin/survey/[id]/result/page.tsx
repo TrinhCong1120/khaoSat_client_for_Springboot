@@ -36,7 +36,7 @@ import GoogleAccountManagerModal from "@/components/surveys/GoogleAccountManager
 import { useCustomDashboardEngine } from "@/hooks/useCustomDashboardEngine";
 import { useReportEngine } from "@/hooks/useReportEngine";
 import { API_GOOGLE_SURVEY, API_REPORTS, API_SURVEYS, API_GOOGLE_INTEGRATIONS } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { getToken, getUser, hasPermission, isUserAdmin } from "@/lib/auth";
 import { formatSurveyLocal, getApiError } from "@/lib/report";
 import {
   buildSurveyFieldMetas,
@@ -46,6 +46,7 @@ import {
   createDefaultReportDefinition,
   detectClientPiiQuestionIds,
   flattenSurveyPagesQuestions,
+  type ComputedField,
   type CustomDashboardDefinition,
   type ReportDefinition,
 } from "@/lib/report-engine";
@@ -208,12 +209,23 @@ export default function SurveyReportPage() {
     [dataset?.records]
   );
 
+  const permanentConfigView = useMemo(
+    () =>
+      savedViews.find(
+        (v) =>
+          v.definition &&
+          (v.definition as { reportKind?: string }).reportKind === "survey_permanent_config"
+      ) ?? null,
+    [savedViews]
+  );
+
   const questionSavedViews = useMemo(
     () =>
       savedViews.filter(
         (v) =>
           !v.definition ||
-          (v.definition as { reportKind?: string }).reportKind !== "custom_dashboard"
+          ((v.definition as { reportKind?: string }).reportKind !== "custom_dashboard" &&
+            (v.definition as { reportKind?: string }).reportKind !== "survey_permanent_config")
       ),
     [savedViews]
   );
@@ -232,6 +244,27 @@ export default function SurveyReportPage() {
     const targetId = tab === "custom" ? activeCustomViewId : activeViewId;
     return savedViews.find((v) => v.id === targetId) ?? null;
   }, [activeCustomViewId, activeViewId, savedViews, tab]);
+
+  const mergeWithPermanentFields = useCallback(
+    (existingFields?: ComputedField[]): ComputedField[] => {
+      const rawPerm = (
+        permanentConfigView?.definition as { computedFields?: ComputedField[] } | undefined
+      )?.computedFields;
+      const permanentFields = Array.isArray(rawPerm)
+        ? rawPerm.map((cf) => ({ ...cf, scope: "permanent" as const }))
+        : [];
+
+      const map = new Map<string, ComputedField>();
+      permanentFields.forEach((cf) => map.set(cf.id, cf));
+      (existingFields ?? []).forEach((cf) => {
+        if (!map.has(cf.id)) {
+          map.set(cf.id, cf);
+        }
+      });
+      return Array.from(map.values());
+    },
+    [permanentConfigView]
+  );
 
   const handleDefinitionChange = useCallback((next: ReportDefinition) => {
     hasCustomizedDefRef.current = true;
@@ -307,6 +340,44 @@ export default function SurveyReportPage() {
     try {
       const list = await listReportViews(surveyId);
       setSavedViews(list);
+
+      // 1. Check for permanent survey fields
+      const permView = list.find(
+        (v) =>
+          v.definition &&
+          (v.definition as { reportKind?: string }).reportKind === "survey_permanent_config"
+      );
+      const permFieldsRaw = (
+        permView?.definition as { computedFields?: ComputedField[] } | undefined
+      )?.computedFields;
+      const permanentFields = Array.isArray(permFieldsRaw)
+        ? permFieldsRaw.map((cf) => ({ ...cf, scope: "permanent" as const }))
+        : [];
+
+      if (permanentFields.length > 0) {
+        setReportDefinition((prev) => {
+          const map = new Map<string, ComputedField>();
+          permanentFields.forEach((cf) => map.set(cf.id, cf));
+          prev.computedFields.forEach((cf) => {
+            if (!map.has(cf.id)) {
+              map.set(cf.id, cf);
+            }
+          });
+          return { ...prev, computedFields: Array.from(map.values()) };
+        });
+
+        setCustomDashboardDef((prev) => {
+          const map = new Map<string, ComputedField>();
+          permanentFields.forEach((cf) => map.set(cf.id, cf));
+          prev.computedFields.forEach((cf) => {
+            if (!map.has(cf.id)) {
+              map.set(cf.id, cf);
+            }
+          });
+          return { ...prev, computedFields: Array.from(map.values()) };
+        });
+      }
+
       if (!hasCustomizedDefRef.current && !appliedDefaultViewRef.current) {
         const defaultView = list.find(
           (v) =>
@@ -317,9 +388,11 @@ export default function SurveyReportPage() {
         if (defaultView) {
           appliedDefaultViewRef.current = true;
           setActiveViewId(defaultView.id);
+          const viewDef = (defaultView.definition as Partial<ReportDefinition>) ?? {};
           setReportDefinition({
             ...createDefaultReportDefinition(questions),
-            ...(defaultView.definition as Partial<ReportDefinition>),
+            ...viewDef,
+            computedFields: mergeWithPermanentFields(viewDef.computedFields),
           });
         }
       }
@@ -333,15 +406,17 @@ export default function SurveyReportPage() {
         if (defaultDashboard) {
           appliedDefaultDashboardRef.current = true;
           setActiveCustomViewId(defaultDashboard.id);
-          setCustomDashboardDef(
-            defaultDashboard.definition as unknown as CustomDashboardDefinition
-          );
+          const loadedDef = defaultDashboard.definition as unknown as CustomDashboardDefinition;
+          setCustomDashboardDef({
+            ...loadedDef,
+            computedFields: mergeWithPermanentFields(loadedDef.computedFields),
+          });
         }
       }
     } catch {
       // ignore if user lacks views access or offline
     }
-  }, [questions, surveyId]);
+  }, [mergeWithPermanentFields, questions, surveyId]);
 
   useEffect(() => {
     void reloadSavedViews();
@@ -357,20 +432,23 @@ export default function SurveyReportPage() {
         setActiveViewId(null);
         setReportDefinition({
           ...preset.definition,
+          computedFields: mergeWithPermanentFields(preset.definition.computedFields),
           name: preset.name,
         });
       } else {
         const view = savedViews.find((v) => v.id === id);
         if (!view) return;
+        const viewDef = (view.definition as Partial<ReportDefinition>) ?? {};
         setActiveViewId(view.id);
         setReportDefinition({
           ...createDefaultReportDefinition(questions),
-          ...(view.definition as Partial<ReportDefinition>),
+          ...viewDef,
+          computedFields: mergeWithPermanentFields(viewDef.computedFields),
           name: view.name,
         });
       }
     },
-    [questions, savedViews, systemPresets]
+    [mergeWithPermanentFields, questions, savedViews, systemPresets]
   );
 
   const handleSelectCustomView = useCallback(
@@ -379,12 +457,81 @@ export default function SurveyReportPage() {
       setPendingDeleteViewId(null);
       const view = customDashboardViews.find((v) => v.id === id);
       if (!view) return;
+      const loadedDef = view.definition as unknown as CustomDashboardDefinition;
       setActiveCustomViewId(view.id);
-      setCustomDashboardDef(
-        view.definition as unknown as CustomDashboardDefinition
-      );
+      setCustomDashboardDef({
+        ...loadedDef,
+        computedFields: mergeWithPermanentFields(loadedDef.computedFields),
+      });
     },
-    [customDashboardViews]
+    [customDashboardViews, mergeWithPermanentFields]
+  );
+
+  const canEditSurvey = useMemo(() => {
+    if (survey?.canEdit) return true;
+    if (isUserAdmin()) return true;
+    const user = getUser();
+    if (user && survey?.creatorUserId && user.id === survey.creatorUserId) return true;
+    return hasPermission("survey_update");
+  }, [survey]);
+
+  const handleComputedFieldsChange = useCallback(
+    async (nextFields: ComputedField[]) => {
+      handleDefinitionChange({ ...reportDefinition, computedFields: nextFields });
+      setCustomDashboardDef((prev) => ({ ...prev, computedFields: nextFields }));
+
+      if (!canEditSurvey) return;
+
+      const permanentFields = nextFields
+        .filter((cf) => cf.scope === "permanent")
+        .map((cf) => ({ ...cf, scope: "permanent" as const }));
+
+      const existingPermanentFields = (
+        (permanentConfigView?.definition as { computedFields?: ComputedField[] })?.computedFields ?? []
+      );
+
+      const hasChanged =
+        JSON.stringify(permanentFields) !== JSON.stringify(existingPermanentFields);
+
+      if (hasChanged) {
+        try {
+          if (permanentConfigView) {
+            await updateReportView(surveyId, permanentConfigView.id, {
+              name: "Cấu hình Cột vĩnh viễn",
+              description: "Hệ thống tự động lưu trữ các cột tự tạo vĩnh viễn toàn bài khảo sát",
+              scope: "SHARED",
+              definition: {
+                reportKind: "survey_permanent_config",
+                computedFields: permanentFields,
+              },
+              isDefault: false,
+            });
+          } else if (permanentFields.length > 0) {
+            await createReportView(surveyId, {
+              name: "Cấu hình Cột vĩnh viễn",
+              description: "Hệ thống tự động lưu trữ các cột tự tạo vĩnh viễn toàn bài khảo sát",
+              scope: "SHARED",
+              definition: {
+                reportKind: "survey_permanent_config",
+                computedFields: permanentFields,
+              },
+              isDefault: false,
+            });
+          }
+          await reloadSavedViews();
+        } catch (err) {
+          console.warn("Failed to persist permanent computed fields:", err);
+        }
+      }
+    },
+    [
+      canEditSurvey,
+      handleDefinitionChange,
+      permanentConfigView,
+      reloadSavedViews,
+      reportDefinition,
+      surveyId,
+    ]
   );
 
   const handleSaveViewSubmit = useCallback(
@@ -617,7 +764,7 @@ export default function SurveyReportPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (connRes.ok) {
-          const conns: any[] = await connRes.json();
+          const conns: Array<{ status?: string }> = await connRes.json();
           hasActiveConn = Array.isArray(conns) && conns.some((c) => c.status === "ACTIVE");
         }
       } catch (e) {
@@ -1162,13 +1309,11 @@ export default function SurveyReportPage() {
         onClose={() => setIsComputedDrawerOpen(false)}
         computedFields={reportDefinition.computedFields}
         statuses={output.computedStatuses}
-        onChange={(computedFields) => {
-          handleDefinitionChange({ ...reportDefinition, computedFields });
-          setCustomDashboardDef((prev) => ({ ...prev, computedFields }));
-        }}
+        onChange={handleComputedFieldsChange}
         records={dataset?.records ?? []}
         questions={questions}
         fieldMetas={fieldMetas}
+        canManagePermanent={canEditSurvey}
       />
 
       <ExportReportModal

@@ -13,13 +13,17 @@ import {
   Eye,
   Filter,
   FunctionSquare,
+  GitMerge,
+  Hash,
   LayoutDashboard,
   Plus,
   Save,
   Settings,
   ShieldAlert,
   ShieldCheck,
+  Sliders,
   Trash2,
+  X,
 } from "lucide-react";
 import {
   countActiveFilterRules,
@@ -31,6 +35,8 @@ import {
   type ComputedField,
   type CustomDashboardDefinition,
   type DashboardWidgetSpec,
+  type FieldRef,
+  type GroupByBinningConfig,
   type ReportDefinition,
   type SurveyFieldMeta,
 } from "@/lib/report-engine";
@@ -327,6 +333,66 @@ export default function CustomReportTab({
       measures: next.measures,
       chart: next.chart,
       viewOptions: next.viewOptions,
+    });
+  };
+
+  const handleUpdateBinning = (
+    groupIndex: number,
+    nextBinning: GroupByBinningConfig | undefined
+  ) => {
+    if (!selectedWidget) return;
+    const nextGroupBy = [...(selectedWidget.groupBy || [])];
+    if (!nextGroupBy[groupIndex]) return;
+    nextGroupBy[groupIndex] = {
+      ...nextGroupBy[groupIndex],
+      binning: nextBinning,
+    };
+    updateSelectedWidget({
+      ...selectedWidget,
+      groupBy: nextGroupBy,
+      viewOptions: {
+        ...(selectedWidget.viewOptions || {
+          showEmptyGroups: false,
+          sortBy: "group",
+          sortDir: "asc",
+          maxGroups: 20,
+          includeGrandTotal: true,
+          pivot: false,
+        }),
+        pivot: nextGroupBy.length >= 2,
+      },
+    });
+  };
+
+  const handleAddCoalesceField = (groupIndex: number, fieldRef: FieldRef) => {
+    if (!selectedWidget) return;
+    const nextGroupBy = [...(selectedWidget.groupBy || [])];
+    const target = nextGroupBy[groupIndex];
+    if (!target) return;
+    const currentCoalesce = target.coalesceFields || [];
+    if (currentCoalesce.includes(fieldRef)) return;
+    nextGroupBy[groupIndex] = {
+      ...target,
+      coalesceFields: [...currentCoalesce, fieldRef],
+    };
+    updateSelectedWidget({
+      ...selectedWidget,
+      groupBy: nextGroupBy,
+    });
+  };
+
+  const handleRemoveCoalesceField = (groupIndex: number, fieldRef: FieldRef) => {
+    if (!selectedWidget) return;
+    const nextGroupBy = [...(selectedWidget.groupBy || [])];
+    const target = nextGroupBy[groupIndex];
+    if (!target) return;
+    nextGroupBy[groupIndex] = {
+      ...target,
+      coalesceFields: (target.coalesceFields || []).filter((f) => f !== fieldRef),
+    };
+    updateSelectedWidget({
+      ...selectedWidget,
+      groupBy: nextGroupBy,
     });
   };
 
@@ -1043,6 +1109,250 @@ export default function CustomReportTab({
                       fieldMetas={fieldMetas}
                     />
                   </div>
+
+                  {/* ADVANCED NUMERIC BINNING & COALESCE CONFIGURATION CARD */}
+                  {selectedWidget.groupBy && selectedWidget.groupBy.length > 0 && (
+                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+                      <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
+                        <div className="rounded-lg bg-indigo-50 p-1.5 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                          <Sliders size={15} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                            Tùy chọn nâng cao: Phân bậc số học & Gộp câu hỏi rẽ nhánh
+                          </h4>
+                          <p className="text-[11px] text-slate-500">
+                            Cấu hình bước nhảy trục liên tục và hợp nhất các câu hỏi theo nhánh điều kiện.
+                          </p>
+                        </div>
+                      </div>
+
+                      {selectedWidget.groupBy.map((gb, gIdx) => {
+                        const meta = fieldMetas.find((m) => m.ref === gb.field);
+                        const isNumericKind =
+                          meta?.kind === "number" ||
+                          meta?.kind === "computed" ||
+                          gb.field.startsWith("system:duration") ||
+                          gb.field.startsWith("system:totalScore");
+                        const binConfig = gb.binning ?? { mode: "none" };
+                        const isBinningActive = binConfig.mode !== "none";
+
+                        return (
+                          <div
+                            key={gb.id || gIdx}
+                            className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-slate-800 dark:bg-slate-950/50"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                                  Cấp {gIdx + 1}
+                                </span>
+                                {gb.label || meta?.shortLabel || gb.field}
+                              </span>
+                            </div>
+
+                            {/* GỘP CÂU HỎI RẼ NHÁNH (COALESCE) */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                <span className="flex items-center gap-1">
+                                  <GitMerge size={12} className="text-indigo-500" />
+                                  Gộp trường thay thế (khi rẽ nhánh / trang khác):
+                                </span>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {(gb.coalesceFields || []).map((cf) => {
+                                  const cMeta = fieldMetas.find((m) => m.ref === cf);
+                                  return (
+                                    <span
+                                      key={cf}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300"
+                                    >
+                                      {cMeta?.label || cf}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveCoalesceField(gIdx, cf)}
+                                        className="rounded-full hover:bg-indigo-200/60 dark:hover:bg-indigo-800"
+                                        title="Xóa trường này"
+                                      >
+                                        <X size={11} />
+                                      </button>
+                                    </span>
+                                  );
+                                })}
+
+                                <select
+                                  aria-label="Thêm trường gộp"
+                                  value=""
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleAddCoalesceField(gIdx, e.target.value as FieldRef);
+                                    }
+                                  }}
+                                  className="h-7 rounded-lg border border-dashed border-slate-300 bg-white px-2 text-[11px] font-medium text-slate-600 hover:border-indigo-400 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                                >
+                                  <option value="">+ Thêm trường rẽ nhánh...</option>
+                                  {fieldMetas
+                                    .filter(
+                                      (m) =>
+                                        m.ref !== gb.field &&
+                                        !(gb.coalesceFields || []).includes(m.ref)
+                                    )
+                                    .map((m) => (
+                                      <option key={m.ref} value={m.ref}>
+                                        {m.label}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* PHÂN BẬC SỐ HỌC (NUMERIC BINNING) */}
+                            {isNumericKind && (
+                              <div className="space-y-2.5 border-t border-slate-200/80 pt-2.5 dark:border-slate-800">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                    <Hash size={12} className="text-blue-500" />
+                                    Chế độ phân bậc số học:
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    {[
+                                      { mode: "none" as const, label: "Gốc" },
+                                      { mode: "round_step" as const, label: "Làm tròn bậc (Round)" },
+                                      { mode: "floor_step" as const, label: "Bậc dưới (Floor)" },
+                                    ].map((opt) => (
+                                      <button
+                                        key={opt.mode}
+                                        type="button"
+                                        onClick={() =>
+                                          handleUpdateBinning(gIdx, {
+                                            ...binConfig,
+                                            mode: opt.mode,
+                                            stepSize: binConfig.stepSize ?? 0.5,
+                                            fillEmptyTicks: binConfig.fillEmptyTicks ?? true,
+                                            decimalPlaces: binConfig.decimalPlaces ?? 1,
+                                          })
+                                        }
+                                        className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
+                                          binConfig.mode === opt.mode
+                                            ? "border border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                            : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                                        }`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {isBinningActive && (
+                                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                                    {/* Step size */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        Bước nhảy (Δ)
+                                      </label>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          min="0.01"
+                                          value={binConfig.stepSize ?? 0.5}
+                                          onChange={(e) =>
+                                            handleUpdateBinning(gIdx, {
+                                              ...binConfig,
+                                              stepSize: parseFloat(e.target.value) || 0.5,
+                                            })
+                                          }
+                                          className="h-8 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                        <div className="flex flex-wrap gap-1">
+                                          {[0.25, 0.5, 1, 5].map((s) => (
+                                            <button
+                                              key={s}
+                                              type="button"
+                                              onClick={() =>
+                                                handleUpdateBinning(gIdx, {
+                                                  ...binConfig,
+                                                  stepSize: s,
+                                                  decimalPlaces: s < 1 ? (s === 0.25 ? 2 : 1) : 0,
+                                                })
+                                              }
+                                              className={`rounded-md px-2 py-1 text-[11px] font-bold transition whitespace-nowrap ${
+                                                binConfig.stepSize === s
+                                                  ? "bg-blue-600 text-white shadow-xs"
+                                                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                              }`}
+                                            >
+                                              {s}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Min & Max Ticks grouped together */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        Giới hạn trục (Min → Max)
+                                      </label>
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          placeholder="Min (Tự động)"
+                                          value={binConfig.minTick ?? ""}
+                                          onChange={(e) =>
+                                            handleUpdateBinning(gIdx, {
+                                              ...binConfig,
+                                              minTick: e.target.value === "" ? undefined : parseFloat(e.target.value),
+                                            })
+                                          }
+                                          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                        <span className="text-slate-400 font-bold">→</span>
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          placeholder="Max (Tự động)"
+                                          value={binConfig.maxTick ?? ""}
+                                          onChange={(e) =>
+                                            handleUpdateBinning(gIdx, {
+                                              ...binConfig,
+                                              maxTick: e.target.value === "" ? undefined : parseFloat(e.target.value),
+                                            })
+                                          }
+                                          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Fill empty ticks */}
+                                    <div className="flex items-center pt-2 sm:pt-6 sm:col-span-2 lg:col-span-1">
+                                      <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        <input
+                                          type="checkbox"
+                                          checked={binConfig.fillEmptyTicks ?? true}
+                                          onChange={(e) =>
+                                            handleUpdateBinning(gIdx, {
+                                              ...binConfig,
+                                              fillEmptyTicks: e.target.checked,
+                                            })
+                                          }
+                                          className="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        Lấp đầy mốc trống (Trục liên tục)
+                                      </label>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* EMBEDDED FILTER BUILDER FOR WIDGET'S OWN FILTER TREE */}
                   <div className="space-y-2">

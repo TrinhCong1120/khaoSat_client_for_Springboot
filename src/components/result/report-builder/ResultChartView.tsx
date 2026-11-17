@@ -56,7 +56,8 @@ export default function ResultChartView({
           },
           xAxis: { type: "value" },
           series: p.colKeys.map((ck, idx) => ({
-            name: ck,
+            id: `bar_series_${idx}_${encodeURIComponent(ck || "empty")}`,
+            name: ck || "(Trống)",
             type: "bar",
             itemStyle: { color: ECHARTS_PALETTE[idx % ECHARTS_PALETTE.length], borderRadius: [0, 4, 4, 0] },
             data: p.rowKeys.map((rk) => p.cells[rk]?.[ck]?.value ?? 0),
@@ -66,24 +67,73 @@ export default function ResultChartView({
 
       if (chart.type === "line") {
         return {
-          tooltip: { trigger: "axis", axisPointer: { type: "line" } },
-          legend: { top: 0, textStyle: { fontSize: 11 } },
-          grid: { top: 36, right: 16, bottom: 28, left: 40, containLabel: true },
+          tooltip: {
+            trigger: "axis",
+            axisPointer: { type: "line" },
+            confine: true,
+            formatter: (params: unknown) => {
+              const rawItems = Array.isArray(params) ? params : [params];
+              const items = rawItems.filter(Boolean) as Array<{
+                axisValueLabel?: string;
+                name?: string;
+                value?: number | string | null;
+                marker?: string;
+                seriesName?: string;
+              }>;
+              if (items.length === 0) return "";
+              const tickKey = String(items[0]?.axisValueLabel ?? items[0]?.name ?? "");
+              const meta = p.tickMetaMap?.[tickKey];
+              const header = meta
+                ? `<div style="font-weight:700;margin-bottom:6px;border-bottom:1px solid rgba(148,163,184,0.3);padding-bottom:3px">${p.rowFieldLabel}: ${meta.displayLabel} <span style="font-weight:400;color:#94a3b8;font-size:11px">[${meta.rangeMin} - ${meta.rangeMax})</span></div>`
+                : `<div style="font-weight:700;margin-bottom:6px;border-bottom:1px solid rgba(148,163,184,0.3);padding-bottom:3px">${p.rowFieldLabel}: ${tickKey}</div>`;
+              const lines = items
+                .filter((item) => item.value != null && !isNaN(Number(item.value)))
+                .sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
+                .map((item) => {
+                  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;margin:2px 0">
+                    <span>${item.marker ?? ""} ${item.seriesName ?? ""}</span>
+                    <span style="font-weight:600">${item.value}</span>
+                  </div>`;
+                })
+                .join("");
+              return `<div style="min-width:140px">${header}${lines}</div>`;
+            },
+          },
+          legend: {
+            type: "scroll",
+            top: 0,
+            textStyle: { fontSize: 11 },
+            selector: [
+              { type: "all", title: "Tất cả" },
+              { type: "inverse", title: "Đảo chọn" },
+            ],
+            selectorPosition: "start",
+          },
+          grid: { top: 40, right: 16, bottom: 28, left: 40, containLabel: true },
           xAxis: {
             type: "category",
             data: p.rowKeys,
             axisLabel: { fontSize: 11, interval: 0, rotate: p.rowKeys.length > 8 ? 20 : 0 },
           },
-          yAxis: { type: "value" },
+          yAxis: {
+            type: "value",
+            minInterval: activeMeasure.agg === "count" ? 1 : undefined,
+          },
           series: p.colKeys.map((ck, idx) => ({
-            name: ck,
+            id: `line_series_${idx}_${encodeURIComponent(ck || "empty")}`,
+            name: ck || "(Trống)",
             type: "line",
             smooth: true,
             symbol: "circle",
             symbolSize: 6,
             itemStyle: { color: ECHARTS_PALETTE[idx % ECHARTS_PALETTE.length] },
             lineStyle: { width: 2.5 },
-            data: p.rowKeys.map((rk) => p.cells[rk]?.[ck]?.value ?? 0),
+            emphasis: {
+              focus: "series",
+              blurScope: "coordinateSystem",
+            },
+            connectNulls: activeMeasure.agg === "avg" || activeMeasure.agg === "median",
+            data: p.rowKeys.map((rk) => p.cells[rk]?.[ck]?.value ?? (activeMeasure.agg === "count" || activeMeasure.agg === "sum" ? 0 : null)),
           })),
         };
       }
@@ -99,7 +149,8 @@ export default function ResultChartView({
         },
         yAxis: { type: "value" },
         series: p.colKeys.map((ck, idx) => ({
-          name: ck,
+          id: `pivot_bar_${idx}_${encodeURIComponent(ck || "empty")}`,
+          name: ck || "(Trống)",
           type: "bar",
           stack: chart.type === "stackedBar" ? "pivot" : undefined,
           itemStyle: { color: ECHARTS_PALETTE[idx % ECHARTS_PALETTE.length], borderRadius: [4, 4, 0, 0] },
@@ -300,14 +351,18 @@ export default function ResultChartView({
               const p = output.pivotMatrix;
               const rk = p.rowKeys[params.dataIndex];
               const ck = params.seriesName;
-              if (rk && ck && p.cells[rk]?.[ck]) {
-                const cell = p.cells[rk][ck];
+              const cell = ck ? (p.cells[rk]?.[ck] ?? (ck === "(Trống)" ? p.cells[rk]?.[""] : undefined)) : undefined;
+              if (rk && ck && cell) {
+                const meta = p.tickMetaMap?.[rk];
                 const recs = cell.recordIds
                   .map((id) => recordMap.get(id))
                   .filter((r): r is DatasetRecord => Boolean(r));
+                const detailLabel = meta
+                  ? `${p.colFieldLabel}: ${ck} · ${p.rowFieldLabel}: ${meta.displayLabel} [${meta.rangeMin} - ${meta.rangeMax})`
+                  : `Biểu đồ · ${p.rowFieldLabel}: ${rk} / ${p.colFieldLabel}: ${ck}`;
                 onDrillDown(
                   recs,
-                  `Biểu đồ · ${rk} / ${ck}`,
+                  detailLabel,
                   `${recs.length} phản hồi trong nhóm này`
                 );
                 return;

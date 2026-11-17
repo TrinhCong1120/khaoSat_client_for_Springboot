@@ -18,10 +18,13 @@ import {
   parseMatrixConfig,
   parseSmartNumber,
   resolveFieldRawValue,
+  resolveFieldWithCoalesce,
 } from "./extractors";
 import {
   FormulaErrorValue,
+  type BinnedTickMeta,
   type ComputedField,
+  type GroupByBinningConfig,
   type GroupBySpec,
   type MeasureSpec,
   type NumericHistogramBucket,
@@ -72,6 +75,78 @@ function formatDateBucket(raw: unknown, mode: "day" | "month" | "quarter" | "yea
   }
 }
 
+export function snapNumericValue(
+  rawValue: number,
+  step: number,
+  mode: "round_step" | "floor_step"
+): number {
+  if (step <= 0) return rawValue;
+  const ratio = rawValue / step;
+  const snappedIndex = mode === "floor_step" ? Math.floor(ratio + 1e-9) : Math.round(ratio);
+  return Number((snappedIndex * step).toFixed(6));
+}
+
+export function formatTickNumber(val: number, step: number, decimalPlaces?: number): string {
+  const inferredDecimals =
+    decimalPlaces ?? (step < 1 ? Math.min(4, String(step).split(".")[1]?.length ?? 1) : 0);
+  return new Intl.NumberFormat("vi-VN", {
+    minimumFractionDigits: inferredDecimals,
+    maximumFractionDigits: inferredDecimals,
+  }).format(val);
+}
+
+export function formatTickKey(val: number, step: number, decimalPlaces?: number): string {
+  const inferredDecimals =
+    decimalPlaces ?? (step < 1 ? Math.min(4, String(step).split(".")[1]?.length ?? 1) : 0);
+  return val.toFixed(inferredDecimals);
+}
+
+export function buildContinuousTickAxis(
+  observedValues: number[],
+  config: GroupByBinningConfig
+): BinnedTickMeta[] {
+  const step = config.stepSize && config.stepSize > 0 ? config.stepSize : 0.5;
+  const decimals =
+    config.decimalPlaces ?? (step < 1 ? Math.min(4, String(step).split(".")[1]?.length ?? 1) : 0);
+
+  const minVal = config.minTick ?? (observedValues.length > 0 ? Math.min(...observedValues) : 0);
+  const maxVal = config.maxTick ?? (observedValues.length > 0 ? Math.max(...observedValues) : 0);
+
+  if (!Number.isFinite(minVal) || !Number.isFinite(maxVal) || minVal > maxVal) {
+    return [];
+  }
+
+  const mode = config.mode === "none" ? "round_step" : config.mode;
+  const snappedMin = snapNumericValue(minVal, step, mode);
+  const snappedMax = snapNumericValue(maxVal, step, mode);
+  const totalSteps = Math.round((snappedMax - snappedMin) / step);
+  const ticks: BinnedTickMeta[] = [];
+
+  for (let i = 0; i <= totalSteps; i++) {
+    const val = Number((snappedMin + i * step).toFixed(6));
+    const rangeMin =
+      config.mode === "floor_step" ? val : Number((val - step / 2).toFixed(6));
+    const rangeMax =
+      config.mode === "floor_step" ? Number((val + step).toFixed(6)) : Number((val + step / 2).toFixed(6));
+
+    const key = val.toFixed(decimals);
+    const displayLabel =
+      step >= 1000
+        ? new Intl.NumberFormat("vi-VN", { maximumFractionDigits: decimals }).format(val)
+        : key;
+
+    ticks.push({
+      key,
+      displayLabel,
+      numericValue: val,
+      rangeMin,
+      rangeMax,
+    });
+  }
+
+  return ticks;
+}
+
 function resolveGroupKeysForSpec(
   record: DatasetRecord,
   spec: GroupBySpec,
@@ -79,8 +154,19 @@ function resolveGroupKeysForSpec(
   recordComputed: Record<string, unknown> | undefined,
   dynamicBinsBySpecId: Map<string, BinRange[]>
 ): string[] {
-  const raw = resolveFieldRawValue(record, spec.field, questionsById, recordComputed);
+  const raw = resolveFieldWithCoalesce(record, spec.field, spec.coalesceFields, questionsById, recordComputed);
   if (raw == null || raw === "") return [EMPTY_GROUP_LABEL];
+
+  if (spec.binning && spec.binning.mode !== "none") {
+    const num = parseSmartNumber(raw);
+    if (num === null) return [EMPTY_GROUP_LABEL];
+    const step = spec.binning.stepSize && spec.binning.stepSize > 0 ? spec.binning.stepSize : 0.5;
+    const decimals =
+      spec.binning.decimalPlaces ??
+      (step < 1 ? Math.min(4, String(step).split(".")[1]?.length ?? 1) : 0);
+    const snapped = snapNumericValue(num, step, spec.binning.mode);
+    return [snapped.toFixed(decimals)];
+  }
 
   if (spec.transform === "multiChoiceSplit") {
     const arr = extractArrayValues(raw);
@@ -201,7 +287,7 @@ function computeCellForGroup(
           continue;
         }
       }
-      const raw = resolveFieldRawValue(r, measure.field, questionsById, comp);
+      const raw = resolveFieldWithCoalesce(r, measure.field, measure.coalesceFields, questionsById, comp);
       const vals = extractArrayValues(raw).map((v) => v.toLowerCase());
       if (targetText && vals.includes(targetText)) {
         matchedIds.push(r.id);
@@ -223,7 +309,13 @@ function computeCellForGroup(
 
   const samples: Array<{ recordId: string; num: number }> = [];
   for (const r of groupRecords) {
-    const raw = resolveFieldRawValue(r, measure.field, questionsById, computedValues.get(r.id));
+    const raw = resolveFieldWithCoalesce(
+      r,
+      measure.field,
+      measure.coalesceFields,
+      questionsById,
+      computedValues.get(r.id)
+    );
     const num = parseSmartNumber(raw);
     if (num !== null) {
       samples.push({ recordId: r.id, num });
@@ -527,7 +619,52 @@ function buildPivotMatrix(
     }
   }
 
-  const rowKeys = Array.from(rowKeysSet).sort((a, b) => a.localeCompare(b, "vi", { numeric: true }));
+  let rowKeys: string[];
+  let tickMetaMap: Record<string, BinnedTickMeta> | undefined;
+
+  if (rowSpec.binning && rowSpec.binning.mode !== "none") {
+    const observedNums = filteredRecords
+      .map((r) =>
+        parseSmartNumber(
+          resolveFieldWithCoalesce(
+            r,
+            rowSpec.field,
+            rowSpec.coalesceFields,
+            questionsById,
+            computedValues.get(r.id)
+          )
+        )
+      )
+      .filter((n): n is number => n !== null);
+
+    const ticks = buildContinuousTickAxis(observedNums, rowSpec.binning);
+    if (ticks.length > 0) {
+      tickMetaMap = {};
+      for (const t of ticks) {
+        tickMetaMap[t.key] = t;
+      }
+      if (rowSpec.binning.fillEmptyTicks) {
+        for (const t of ticks) {
+          rowKeysSet.add(t.key);
+        }
+        rowKeys = ticks.map((t) => t.key);
+      } else {
+        rowKeys = Array.from(rowKeysSet).sort((a, b) => {
+          const valA = tickMetaMap?.[a]?.numericValue ?? parseFloat(a);
+          const valB = tickMetaMap?.[b]?.numericValue ?? parseFloat(b);
+          if (Number.isFinite(valA) && Number.isFinite(valB)) {
+            return valA - valB;
+          }
+          return a.localeCompare(b, "vi", { numeric: true });
+        });
+      }
+    } else {
+      rowKeys = Array.from(rowKeysSet).sort((a, b) => a.localeCompare(b, "vi", { numeric: true }));
+    }
+  } else {
+    rowKeys = Array.from(rowKeysSet).sort((a, b) => a.localeCompare(b, "vi", { numeric: true }));
+  }
+
   const colKeys = Array.from(colKeysSet).sort((a, b) => a.localeCompare(b, "vi", { numeric: true }));
   const total = filteredRecords.length;
 
@@ -538,10 +675,27 @@ function buildPivotMatrix(
     cells[rk] = {};
     for (const ck of colKeys) {
       const recs = cellRecords.get(`${rk}\u0000${ck}`) ?? [];
-      const cell = computeCellForGroup(recs, measure, total, questionsById, computedValues);
-      cells[rk][ck] = cell;
-      if (cell.value !== null && Number.isFinite(cell.value)) {
-        allPivotVals.push(cell.value);
+      if (recs.length === 0) {
+        if (measure.agg === "count" || measure.agg === "sum") {
+          cells[rk][ck] = {
+            value: 0,
+            displayValue: "0",
+            recordIds: [],
+          };
+          allPivotVals.push(0);
+        } else {
+          cells[rk][ck] = {
+            value: null,
+            displayValue: "—",
+            recordIds: [],
+          };
+        }
+      } else {
+        const cell = computeCellForGroup(recs, measure, total, questionsById, computedValues);
+        cells[rk][ck] = cell;
+        if (cell.value !== null && Number.isFinite(cell.value)) {
+          allPivotVals.push(cell.value);
+        }
       }
     }
   }
@@ -563,13 +717,22 @@ function buildPivotMatrix(
 
   const rowTotals: Record<string, ResultCell> = {};
   for (const rk of rowKeys) {
-    rowTotals[rk] = computeCellForGroup(
-      rowRecords.get(rk) ?? [],
-      measure,
-      total,
-      questionsById,
-      computedValues
-    );
+    const recs = rowRecords.get(rk) ?? [];
+    if (recs.length === 0) {
+      if (measure.agg === "count" || measure.agg === "sum") {
+        rowTotals[rk] = { value: 0, displayValue: "0", recordIds: [] };
+      } else {
+        rowTotals[rk] = { value: null, displayValue: "—", recordIds: [] };
+      }
+    } else {
+      rowTotals[rk] = computeCellForGroup(
+        recs,
+        measure,
+        total,
+        questionsById,
+        computedValues
+      );
+    }
   }
 
   const colTotals: Record<string, ResultCell> = {};
@@ -594,6 +757,7 @@ function buildPivotMatrix(
     rowTotals,
     colTotals,
     grandTotal: computeCellForGroup(filteredRecords, measure, total, questionsById, computedValues),
+    tickMetaMap,
   };
 }
 

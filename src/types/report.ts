@@ -182,6 +182,7 @@ export type SurveyResultDetail = {
   scheduleWarnings?: string[];
   pages?: Array<{ id: string; title?: string | null; questions?: SurveyResultQuestion[] }>;
   googleIntegration?: GoogleIntegrationInfo | null;
+  canEdit?: boolean;
 };
 
 export type TrafficPoint = {

@@ -61,10 +61,13 @@ export type CustomBinRange = {
   max?: number | null;
 };
 
+export type ComputedFieldScope = "temporary" | "permanent";
+
 export type ComputedField =
   | {
       id: string;
       name: string;
+      scope?: ComputedFieldScope;
       kind: "extract";
       sourceField: FieldRef;
       extractType: ExtractKind;
@@ -73,6 +76,7 @@ export type ComputedField =
   | {
       id: string;
       name: string;
+      scope?: ComputedFieldScope;
       kind: "bin";
       sourceField: FieldRef;
       method: BinMethod;
@@ -85,6 +89,7 @@ export type ComputedField =
   | {
       id: string;
       name: string;
+      scope?: ComputedFieldScope;
       kind: "datePart";
       sourceField: FieldRef;
       part: DatePartKind;
@@ -92,6 +97,7 @@ export type ComputedField =
   | {
       id: string;
       name: string;
+      scope?: ComputedFieldScope;
       kind: "formula";
       expression: string;
       outputType?: "text" | "number" | "boolean";
@@ -114,6 +120,17 @@ export type GroupByTransform =
   | "dateWeekday"
   | "numberBin";
 
+export type NumericBinningMode = "none" | "round_step" | "floor_step";
+
+export interface GroupByBinningConfig {
+  mode: NumericBinningMode;
+  stepSize?: number;
+  minTick?: number;
+  maxTick?: number;
+  fillEmptyTicks?: boolean;
+  decimalPlaces?: number;
+}
+
 export type GroupBySpec = {
   id: string;
   field: FieldRef;
@@ -121,6 +138,8 @@ export type GroupBySpec = {
   transform: GroupByTransform;
   binStep?: number;
   binCount?: number;
+  coalesceFields?: FieldRef[];
+  binning?: GroupByBinningConfig;
 };
 
 export type MeasureAgg =
@@ -140,6 +159,7 @@ export type MeasureSpec = {
   field: FieldRef | "responses";
   agg: MeasureAgg;
   label?: string;
+  coalesceFields?: FieldRef[];
   targetOptionText?: string;
   targetOptionId?: string;
   highlightBest?: boolean;
@@ -256,6 +276,14 @@ export type ResultRow = {
   cells: Record<string, ResultCell>;
 };
 
+export interface BinnedTickMeta {
+  key: string;
+  displayLabel: string;
+  numericValue: number;
+  rangeMin: number;
+  rangeMax: number;
+}
+
 export type PivotMatrix = {
   rowFieldLabel: string;
   colFieldLabel: string;
@@ -267,6 +295,7 @@ export type PivotMatrix = {
   rowTotals: Record<string, ResultCell>;
   colTotals: Record<string, ResultCell>;
   grandTotal: ResultCell;
+  tickMetaMap?: Record<string, BinnedTickMeta>;
 };
 
 export type NumericHistogramBucket = {

@@ -331,7 +331,9 @@ function renderPivotSheet(ws: ExcelJS.Worksheet, output: ReportOutput) {
   styleHeaderRow(ws.getRow(1));
 
   for (const rk of pivot.rowKeys) {
-    const rowVals: Array<string | number> = [rk];
+    const meta = pivot.tickMetaMap?.[rk];
+    const rowLabel = meta ? meta.displayLabel : rk;
+    const rowVals: Array<string | number> = [rowLabel];
     for (const ck of pivot.colKeys) {
       const c = pivot.cells[rk]?.[ck];
       rowVals.push(c?.value != null ? c.value : "—");

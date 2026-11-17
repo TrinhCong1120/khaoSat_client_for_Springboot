@@ -179,6 +179,28 @@ export function parseMatrixAnswer(
   }
 }
 
+export function resolveFieldWithCoalesce(
+  record: DatasetRecord,
+  primaryField: FieldRef,
+  coalesceFields: FieldRef[] | undefined,
+  questionsById: Map<string, SurveyResultQuestion>,
+  computedValues?: Record<string, unknown>
+): unknown {
+  const primaryVal = resolveFieldRawValue(record, primaryField, questionsById, computedValues);
+  if (primaryVal != null && primaryVal !== "" && !Number.isNaN(primaryVal)) {
+    return primaryVal;
+  }
+  if (coalesceFields && coalesceFields.length > 0) {
+    for (const cf of coalesceFields) {
+      const fallbackVal = resolveFieldRawValue(record, cf, questionsById, computedValues);
+      if (fallbackVal != null && fallbackVal !== "" && !Number.isNaN(fallbackVal)) {
+        return fallbackVal;
+      }
+    }
+  }
+  return null;
+}
+
 export function resolveFieldRawValue(
   record: DatasetRecord,
   field: FieldRef,

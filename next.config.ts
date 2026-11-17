@@ -58,5 +58,5 @@ const nextConfig: NextConfig = {
 };
 
 
-// Trigger restart
+// Trigger restart: reload routes
 export default nextConfig;

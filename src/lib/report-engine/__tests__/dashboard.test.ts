@@ -315,4 +315,68 @@ describe("Custom Dashboard Engine & Export", () => {
     expect(widgetOut.pivotMatrix?.cells["85"]?.["Kỹ thuật"]?.value).toBe(1);
     expect(widgetOut.pivotMatrix?.cells["85"]?.["Kỹ thuật"]?.recordIds).toContain("rec_1");
   });
+
+  it("should correctly handle permanent and temporary scoped computed fields in pipeline", () => {
+    const permField = {
+      id: "cf_perm",
+      name: "Cột vĩnh viễn (Phòng chuẩn hóa)",
+      scope: "permanent" as const,
+      kind: "extract" as const,
+      sourceField: "question:q_dept" as const,
+      extractType: "firstWord" as const,
+    };
+
+    const tempField = {
+      id: "cf_temp",
+      name: "Cột tạm thời (Thang điểm 10)",
+      scope: "temporary" as const,
+      kind: "formula" as const,
+      expression: "=[#q_score] / 10",
+    };
+
+    const dashboardDef: CustomDashboardDefinition = {
+      version: 2,
+      reportKind: "custom_dashboard",
+      name: "Dashboard Scope Test",
+      globalFilterTree: createEmptyFilterTree(),
+      computedFields: [tempField],
+      widgets: [
+        {
+          id: "w_scope",
+          title: "Widget Scope Test",
+          displayMode: "both",
+          width: "full",
+          ignoreGlobalFilter: false,
+          filterTree: createEmptyFilterTree(),
+          groupBy: [
+            { id: "g1", field: "computed:cf_perm", label: "Phòng (Vĩnh viễn)", transform: "exact" },
+          ],
+          measures: [
+            { id: "m_avg", field: "computed:cf_temp", agg: "avg", label: "Điểm TB / 10" },
+          ],
+          viewOptions: {
+            pivot: false,
+            includeGrandTotal: false,
+            showEmptyGroups: false,
+          },
+          chart: { enabled: true, type: "bar", measureId: "m_avg" },
+        },
+      ],
+    };
+
+    // Run pipeline with shared permanent field + dashboard temporary field
+    const output = runCustomDashboardPipeline(records, questions, dashboardDef, [permField]);
+
+    expect(output.computedValues.has("rec_1")).toBe(true);
+
+    const rec1Vals = output.computedValues.get("rec_1");
+    expect(rec1Vals?.cf_perm).toBe("Kỹ"); // firstWord of "Kỹ thuật"
+    expect(rec1Vals?.cf_temp).toBe(8.5); // 85 / 10
+
+    const widgetOut = output.widgetOutputs.w_scope;
+    expect(widgetOut.rows.length).toBeGreaterThan(0);
+    const rowKy = widgetOut.rows.find((r) => r.rowKey === "Kỹ");
+    expect(rowKy).toBeDefined();
+    expect(rowKy?.cells.m_avg?.value).toBeCloseTo(8.75, 2); // (85 + 90) / 20 = 8.75
+  });
 });

@@ -3,8 +3,11 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ArrowLeftRight,
   CheckCircle2,
+  Clock,
   FunctionSquare,
+  Globe,
   Plus,
   Sparkles,
   Trash2,
@@ -18,6 +21,7 @@ import {
   toStorageFormula,
   type BinMethod,
   type ComputedField,
+  type ComputedFieldScope,
   type ComputedFieldStatus,
   type DatePartKind,
   type ExtractKind,
@@ -35,6 +39,7 @@ type Props = {
   records: DatasetRecord[];
   questions: SurveyResultQuestion[];
   fieldMetas: SurveyFieldMeta[];
+  canManagePermanent?: boolean;
 };
 
 const EXTRACT_OPTIONS: Array<{ value: ExtractKind; label: string; desc: string }> = [
@@ -65,10 +70,12 @@ export default function ComputedFieldsDrawer({
   records,
   questions,
   fieldMetas,
+  canManagePermanent = true,
 }: Props) {
   const [editorTab, setEditorTab] = useState<"guided" | "formula">("guided");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [scope, setScope] = useState<ComputedFieldScope>("temporary");
   const [guidedMode, setGuidedMode] = useState<"extract" | "bin" | "datePart">("extract");
   const [sourceField, setSourceField] = useState<FieldRef>(
     fieldMetas.find((f) => f.ref.startsWith("question:"))?.ref ?? "system:submittedAt"
@@ -94,6 +101,7 @@ export default function ComputedFieldsDrawer({
       return {
         id,
         name: safeName,
+        scope,
         kind: "formula",
         expression: toStorageFormula(displayFormula, questions),
       };
@@ -102,6 +110,7 @@ export default function ComputedFieldsDrawer({
       return {
         id,
         name: safeName,
+        scope,
         kind: "extract",
         sourceField,
         extractType,
@@ -120,6 +129,7 @@ export default function ComputedFieldsDrawer({
       return {
         id,
         name: safeName,
+        scope,
         kind: "bin",
         sourceField,
         method: binMethod,
@@ -132,6 +142,7 @@ export default function ComputedFieldsDrawer({
     return {
       id,
       name: safeName,
+      scope,
       kind: "datePart",
       sourceField,
       part: datePart,
@@ -151,6 +162,7 @@ export default function ComputedFieldsDrawer({
     name,
     questions,
     regexPattern,
+    scope,
     sourceField,
   ]);
 
@@ -183,7 +195,18 @@ export default function ComputedFieldsDrawer({
   const resetForm = () => {
     setEditingId(null);
     setName("");
+    setScope("temporary");
     setDisplayFormula("");
+  };
+
+  const handleToggleScope = (cf: ComputedField) => {
+    if (!canManagePermanent) return;
+    const nextScope: ComputedFieldScope = cf.scope === "permanent" ? "temporary" : "permanent";
+    onChange(
+      computedFields.map((item) =>
+        item.id === cf.id ? { ...item, scope: nextScope } : item
+      )
+    );
   };
 
   const handleSaveField = () => {
@@ -192,7 +215,7 @@ export default function ComputedFieldsDrawer({
     if (draftField.kind === "formula" && preview.status.syntaxError) return;
 
     const newId = editingId ?? `cf_${Math.random().toString(36).slice(2, 9)}`;
-    const fieldToSave: ComputedField = { ...draftField, id: newId, name: finalName };
+    const fieldToSave: ComputedField = { ...draftField, id: newId, name: finalName, scope };
     if (editingId) {
       onChange(computedFields.map((c) => (c.id === editingId ? fieldToSave : c)));
     } else {
@@ -204,6 +227,7 @@ export default function ComputedFieldsDrawer({
   const handleEdit = (cf: ComputedField) => {
     setEditingId(cf.id);
     setName(cf.name);
+    setScope(cf.scope ?? "temporary");
     if (cf.kind === "formula") {
       setEditorTab("formula");
       setDisplayFormula(toDisplayFormula(cf.expression, questions));
@@ -277,6 +301,23 @@ export default function ComputedFieldsDrawer({
                             <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">
                               {cf.kind === "formula" ? "Công thức Excel" : cf.kind}
                             </span>
+                            {cf.scope === "permanent" ? (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
+                                title="Cột vĩnh viễn: Tự động dùng trên toàn khảo sát (Tab 2, Tab 3, Tab 4 & Xuất Excel)"
+                              >
+                                <Globe size={10} />
+                                Vĩnh viễn
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                title="Cột tạm thời: Chỉ dùng trong mẫu báo cáo tùy chỉnh này"
+                              >
+                                <Clock size={10} />
+                                Tạm thời
+                              </span>
+                            )}
                             {st && (st.syntaxError || st.runtimeErrorCount > 0) && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
                                 <AlertTriangle size={10} />
@@ -291,6 +332,21 @@ export default function ComputedFieldsDrawer({
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5">
+                          {canManagePermanent && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleScope(cf)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                              title={
+                                cf.scope === "permanent"
+                                  ? "Chuyển thành cột tạm thời"
+                                  : "Nâng cấp thành cột vĩnh viễn toàn khảo sát"
+                              }
+                            >
+                              <ArrowLeftRight size={11} />
+                              {cf.scope === "permanent" ? "Hạ tạm thời" : "Lên vĩnh viễn"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleEdit(cf)}
@@ -367,6 +423,58 @@ export default function ComputedFieldsDrawer({
                   placeholder="Ví dụ: Nhóm ký tự đầu, Mức đánh giá, Tháng nộp..."
                   className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900"
                 />
+              </div>
+
+              {/* SCOPE SELECTION */}
+              <div className="mb-3">
+                <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Phạm vi áp dụng
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setScope("temporary")}
+                    className={`flex flex-col items-start gap-1 rounded-xl border p-2.5 text-left transition ${
+                      scope === "temporary"
+                        ? "border-indigo-500 bg-indigo-50/70 text-indigo-950 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-200"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-bold">
+                      <Clock size={13} className={scope === "temporary" ? "text-indigo-600" : "text-slate-400"} />
+                      Tạm thời (Mẫu này)
+                    </div>
+                    <p className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
+                      Chỉ dùng trong mẫu báo cáo hiện tại.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!canManagePermanent}
+                    onClick={() => setScope("permanent")}
+                    className={`flex flex-col items-start gap-1 rounded-xl border p-2.5 text-left transition ${
+                      !canManagePermanent
+                        ? "cursor-not-allowed opacity-50 border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900"
+                        : scope === "permanent"
+                        ? "border-purple-500 bg-purple-50/70 text-purple-950 dark:border-purple-500 dark:bg-purple-950/40 dark:text-purple-200"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                    }`}
+                    title={
+                      !canManagePermanent
+                        ? "Chỉ người quản trị/tạo khảo sát mới được tạo cột vĩnh viễn"
+                        : undefined
+                    }
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-bold">
+                      <Globe size={13} className={scope === "permanent" ? "text-purple-600" : "text-slate-400"} />
+                      Vĩnh viễn (Toàn khảo sát)
+                    </div>
+                    <p className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
+                      Hiện ở Tab 2, Tab 3, Tab 4 & File Excel.
+                    </p>
+                  </button>
+                </div>
               </div>
 
               {editorTab === "guided" ? (

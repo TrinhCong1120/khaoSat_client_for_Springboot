@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ECharts, EChartsOption } from "echarts";
 
 export type { EChartsOption };
@@ -12,7 +12,7 @@ export interface EChartsContainerProps {
   loading?: boolean;
   theme?: "dark" | "light" | "auto";
   emptyText?: string;
-  onEvents?: Record<string, (params: any) => void>;
+  onEvents?: Record<string, (params: unknown) => void>;
 }
 
 export const ECHARTS_PALETTE = [
@@ -44,12 +44,12 @@ export default function EChartsContainer({
   className = "",
   loading = false,
   theme = "auto",
-  emptyText = "Chưa có dữ liệu",
   onEvents,
 }: EChartsContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<ECharts | null>(null);
   const [isDark, setIsDark] = useState<boolean>(false);
+  const [chartReadyCount, setChartReadyCount] = useState<number>(0);
 
   // Detect current system dark mode
   useEffect(() => {
@@ -78,22 +78,34 @@ export default function EChartsContainer({
   const activeTheme = theme === "auto" ? (isDark ? "dark" : undefined) : theme === "dark" ? "dark" : undefined;
 
   const optionRef = useRef(option);
-  optionRef.current = option;
+  useEffect(() => {
+    optionRef.current = option;
+  }, [option]);
 
-  const onEventsRef = useRef(onEvents);
-  onEventsRef.current = onEvents;
+  const applyOption = useCallback((chart: ECharts, opt: EChartsOption) => {
+    if (chart.isDisposed()) return;
+    try {
+      chart.dispatchAction({ type: "hideTip" });
+      chart.dispatchAction({ type: "downplay" });
+    } catch {
+      // Ignore if chart is not yet rendered or has no series
+    }
 
-  const applyOption = (chart: ECharts, opt: EChartsOption) => {
     const themedOption: EChartsOption = {
       backgroundColor: "transparent",
       color: ECHARTS_PALETTE,
       ...opt,
     };
-    chart.setOption(themedOption, {
-      notMerge: true,
-      lazyUpdate: true,
-    });
-  };
+
+    try {
+      chart.setOption(themedOption, {
+        notMerge: true,
+        lazyUpdate: false,
+      });
+    } catch (err) {
+      console.warn("[EChartsContainer] setOption error:", err);
+    }
+  }, []);
 
   // Initialize and update chart whenever activeTheme changes
   useEffect(() => {
@@ -103,6 +115,10 @@ export default function EChartsContainer({
     let resizeObserver: ResizeObserver | null = null;
 
     if (chartInstanceRef.current) {
+      try {
+        chartInstanceRef.current.dispatchAction({ type: "hideTip" });
+        chartInstanceRef.current.dispatchAction({ type: "downplay" });
+      } catch {}
       chartInstanceRef.current.dispose();
       chartInstanceRef.current = null;
     }
@@ -114,12 +130,6 @@ export default function EChartsContainer({
         renderer: "canvas",
       });
       chartInstanceRef.current = chart;
-
-      if (onEventsRef.current) {
-        Object.entries(onEventsRef.current).forEach(([eventName, handler]) => {
-          chart.on(eventName, handler);
-        });
-      }
 
       applyOption(chart, optionRef.current);
 
@@ -133,9 +143,12 @@ export default function EChartsContainer({
       }
 
       resizeObserver = new ResizeObserver(() => {
-        chart.resize();
+        if (!chart.isDisposed()) {
+          chart.resize();
+        }
       });
       resizeObserver.observe(containerRef.current);
+      setChartReadyCount((prev) => prev + 1);
     }).catch(() => {
       // Ignore SSR import failures
     });
@@ -144,17 +157,48 @@ export default function EChartsContainer({
       isDisposed = true;
       if (resizeObserver) resizeObserver.disconnect();
       if (chartInstanceRef.current) {
+        try {
+          chartInstanceRef.current.dispatchAction({ type: "hideTip" });
+          chartInstanceRef.current.dispatchAction({ type: "downplay" });
+        } catch {}
         chartInstanceRef.current.dispose();
         chartInstanceRef.current = null;
       }
     };
-  }, [activeTheme]);
+  }, [activeTheme, applyOption, isDark, loading]);
+
+  // Bind and unbind events safely whenever onEvents or chart changes
+  useEffect(() => {
+    const chart = chartInstanceRef.current;
+    if (!chart || chart.isDisposed() || !onEvents) return;
+
+    const boundEntries: Array<[string, (params: unknown) => void]> = [];
+    Object.entries(onEvents).forEach(([eventName, handler]) => {
+      const safeHandler = (params: unknown) => {
+        try {
+          handler(params);
+        } catch (err) {
+          console.warn(`[EChartsContainer] Event error on ${eventName}:`, err);
+        }
+      };
+      chart.on(eventName, safeHandler);
+      boundEntries.push([eventName, safeHandler]);
+    });
+
+    return () => {
+      if (!chart.isDisposed()) {
+        boundEntries.forEach(([eventName, safeHandler]) => {
+          chart.off(eventName, safeHandler);
+        });
+      }
+    };
+  }, [chartReadyCount, onEvents]);
 
   // Set chart options whenever option changes
   useEffect(() => {
-    if (!chartInstanceRef.current) return;
+    if (!chartInstanceRef.current || chartInstanceRef.current.isDisposed()) return;
     applyOption(chartInstanceRef.current, option);
-  }, [option]);
+  }, [applyOption, option]);
 
   // Handle loading state
   useEffect(() => {
